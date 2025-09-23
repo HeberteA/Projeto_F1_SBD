@@ -247,8 +247,36 @@ if pagina_selecionada == "Análises":
                     id_piloto1 = int(pilotos_df_h2h[pilotos_df_h2h["nome_completo"] == piloto1_nome].iloc[0]['id_piloto'])
                     id_piloto2 = int(pilotos_df_h2h[pilotos_df_h2h["nome_completo"] == piloto2_nome].iloc[0]['id_piloto'])
                     
-                    h2h_data_query = """
-                        WITH pilot_champs AS (...) SELECT ...
+                     h2h_data_query = f"""
+                        WITH results_filtered AS (
+                            SELECT r.* FROM tbl_resultados r
+                            JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida
+                            WHERE c.ano BETWEEN {start_year} AND {end_year}
+                              AND r.id_piloto_fk IN ({id_piloto1}, {id_piloto2})
+                        ),
+                        pilot_champs AS (
+                            SELECT piloto, COUNT(*) as titulos FROM (
+                                SELECT p.nome || ' ' || p.sobrenome as piloto 
+                                FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto 
+                                WHERE c.ano BETWEEN {start_year} AND {end_year}
+                                GROUP BY c.ano, p.nome, p.sobrenome, r.id_piloto_fk 
+                                HAVING SUM(r.pontos) = (SELECT MAX(total_pontos) FROM (SELECT SUM(pontos) as total_pontos FROM tbl_resultados r2 JOIN tbl_corridas c2 ON r2.id_corrida_fk = c2.id_corrida WHERE c2.ano = c.ano GROUP BY r2.id_piloto_fk) as sub)
+                            ) as champs WHERE piloto IN ('{piloto1_nome}', '{piloto2_nome}') GROUP BY piloto
+                        )
+                        SELECT 
+                            p.id_piloto, p.nome || ' ' || p.sobrenome as piloto_nome, p.nacionalidade, p.numero,
+                            COUNT(rf.id_resultado) AS total_corridas,
+                            SUM(CASE WHEN rf.posicao_final = 1 THEN 1 ELSE 0 END) AS vitorias,
+                            SUM(CASE WHEN rf.posicao_grid = 1 THEN 1 ELSE 0 END) AS poles,
+                            SUM(CASE WHEN rf.posicao_final <= 3 THEN 1 ELSE 0 END) AS podios,
+                            SUM(rf.pontos) AS total_pontos, AVG(rf.pontos) AS media_pontos,
+                            AVG(rf.posicao_grid) as media_grid, AVG(rf.posicao_final) as media_final,
+                            COALESCE((SELECT titulos FROM pilot_champs pc WHERE pc.piloto = p.nome || ' ' || p.sobrenome), 0) as titulos
+                        FROM tbl_pilotos p
+                        LEFT JOIN results_filtered rf ON p.id_piloto = rf.id_piloto_fk
+                        WHERE p.id_piloto IN ({id_piloto1}, {id_piloto2})
+                        GROUP BY p.id_piloto, p.nome, p.sobrenome, p.nacionalidade, p.numero;
+                    """
                     
                     params = {'p1': id_piloto1, 'p2': id_piloto2, 'n1': piloto1_nome, 'n2': piloto2_nome, 'sy': start_year, 'ey': end_year}
                     h2h_df = consultar_dados_df(h2h_data_query, params=params)
