@@ -28,7 +28,7 @@ def consultar_dados_df(query, params=None):
     except Exception as e:
         st.warning(f"Erro ao ler dados: {e}")
         return pd.DataFrame()
-        
+
 def executar_comando_sql(query, params=None):
     if not conn: return None
     try:
@@ -38,7 +38,7 @@ def executar_comando_sql(query, params=None):
             return cursor.rowcount
     except Exception as e:
         st.error(f"Erro de banco de dados: {e}")
-        conn.rollback()
+        conn.rollback() 
         return None
 
 with st.sidebar:
@@ -51,7 +51,7 @@ with st.sidebar:
 if pagina_selecionada == "Análises":
     st.title("📊 Análises e Dashboards de F1")
     
-    tab_piloto, tab_equipe, tab_h2h, tab_circ, tab_records = st.tabs(["Dashboard de Piloto", "Dashboard de Equipe", "Comparador H2H", "Análise de Circuito", "🏆 Hall da Fama"])
+    tab_piloto, tab_equipe, tab_h2h, tab_circ, tab_records = st.tabs(["Dashboard de Piloto", "Dashboard de Equipe", "Comparador H2H", "Análise de Circuito", "Hall da Fama"])
 
     with tab_piloto:
         st.header("Análise de Performance de Piloto")
@@ -60,9 +60,12 @@ if pagina_selecionada == "Análises":
             pilotos_df["nome_completo"] = pilotos_df["nome"] + " " + pilotos_df["sobrenome"]
             piloto_selecionado = st.selectbox("Selecione um Piloto", options=pilotos_df["nome_completo"], index=None, placeholder="Digite o nome de um piloto...", key="sel_piloto")
             
-            if piloto_selecionado:
+            if not piloto_selecionado:
+                st.info("Selecione um piloto para visualizar suas estatísticas.")
+            else:
                 piloto_info = pilotos_df[pilotos_df["nome_completo"] == piloto_selecionado].iloc[0]
                 id_piloto = int(piloto_info["id_piloto"])
+                
                 with st.container(border=True):
                     c1, c2, c3, c4 = st.columns([2, 1, 1, 1.5])
                     with c1:
@@ -91,6 +94,7 @@ if pagina_selecionada == "Análises":
                         SUM(CASE WHEN posicao_final <= 3 THEN 1 ELSE 0 END) AS podios,
                         SUM(pontos) AS total_pontos,
                         AVG(pontos) AS media_pontos,
+                        SUM(CASE WHEN id_rank_volta_rapida = 1 THEN 1 ELSE 0 END) AS voltas_rapidas,
                         COALESCE((SELECT titulos FROM pilot_champs), 0) as titulos
                     FROM tbl_resultados WHERE id_piloto_fk = %(id_piloto)s;
                 """
@@ -98,36 +102,38 @@ if pagina_selecionada == "Análises":
 
                 if not kpi_df.empty:
                     kpi_data = kpi_df.iloc[0]
-                    col1, col2, col3, col4, col5, col6 = st.columns(6)
-                    col1.metric("🏆 Títulos", int(kpi_data["titulos"]))
-                    col2.metric("🏎️ Corridas", int(kpi_data["total_corridas"]))
-                    col3.metric("🥇 Vitórias", int(kpi_data["vitorias"]))
-                    col4.metric("🥈 Pódios", int(kpi_data["podios"]))
-                    col5.metric("⏱️ Poles", int(kpi_data["poles"]))
-                    col6.metric(" Média Pontos", f"{kpi_data['media_pontos']:.2f}")
+                    c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+                    c1.metric("🏆 Títulos", int(kpi_data["titulos"]))
+                    c2.metric("🏎️ Corridas", int(kpi_data["total_corridas"]))
+                    c3.metric("🥇 Vitórias", int(kpi_data["vitorias"]))
+                    c4.metric("🥈 Pódios", int(kpi_data["podios"]))
+                    c5.metric("⏱️ Poles", int(kpi_data["poles"]))
+                    c6.metric("🚀 Voltas R.", int(kpi_data["voltas_rapidas"]))
+                    c7.metric("Média Pontos", f"{kpi_data['media_pontos']:.2f}" if kpi_data['media_pontos'] else "0.00")
+
+                    # NOVOS CARDS DE PERFORMANCE
+                    st.subheader("Métricas de Performance")
+                    c1, c2, c3 = st.columns(3)
+                    win_rate = (kpi_data["vitorias"] / kpi_data["total_corridas"] * 100) if kpi_data["total_corridas"] > 0 else 0
+                    podium_rate = (kpi_data["podios"] / kpi_data["total_corridas"] * 100) if kpi_data["total_corridas"] > 0 else 0
+                    c1.metric("% de Vitórias", f"{win_rate:.1f}%")
+                    c2.metric("% de Pódios", f"{podium_rate:.1f}%")
+                    
+                    best_grid_query = "SELECT cir.nome, AVG(r.posicao_grid) as media_grid FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_circuitos cir ON c.id_circuito_fk = cir.id_circuito WHERE r.id_piloto_fk = %(id)s GROUP BY cir.nome ORDER BY media_grid ASC LIMIT 1;"
+                    best_grid_df = consultar_dados_df(best_grid_query, params={'id': id_piloto})
+                    if not best_grid_df.empty:
+                         c3.metric("Melhor Média de Largada", best_grid_df.iloc[0]['nome'], f"#{best_grid_df.iloc[0]['media_grid']:.2f}")
 
                 st.divider()
 
-                col_chart1, col_chart2 = st.columns(2)
-                
-                with col_chart1:
-                    st.subheader("Pontos por Temporada")
-                    pontos_query = "SELECT c.ano, SUM(r.pontos) as pontos FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE r.id_piloto_fk = %(id)s GROUP BY c.ano ORDER BY c.ano;"
-                    pontos_df = consultar_dados_df(pontos_query, params={'id': id_piloto})
-                    if not pontos_df.empty:
-                        fig_pontos_piloto = px.bar(pontos_df, x='ano', y='pontos', text_auto=True, color_discrete_sequence=[F1_RED], labels={'ano': 'Temporada', 'pontos': 'Pontos'})
-                        st.plotly_chart(fig_pontos_piloto, use_container_width=True)
-                
-                with col_chart2:
-                    st.subheader("Posição Média (Grid vs. Final)")
-                    pos_query = "SELECT AVG(posicao_grid) as media_grid, AVG(posicao_final) as media_final FROM tbl_resultados WHERE id_piloto_fk = %(id)s AND posicao_final IS NOT NULL;"
-                    pos_df = consultar_dados_df(pos_query, params={'id': id_piloto})
-                    if not pos_df.empty and pos_df.iloc[0]['media_grid'] is not None:
-                        pos_df_melted = pos_df.melt(var_name='Tipo de Posição', value_name='Posição Média')
-                        pos_df_melted['Tipo de Posição'] = pos_df_melted['Tipo de Posição'].map({'media_grid': 'Grid', 'media_final': 'Final'})
-                        fig_pos_piloto = px.bar(pos_df_melted, x='Tipo de Posição', y='Posição Média', text_auto='.2f', color='Tipo de Posição', color_discrete_sequence=[F1_GREY, F1_RED])
-                        fig_pos_piloto.update_layout(showlegend=False)
-                        st.plotly_chart(fig_pos_piloto, use_container_width=True)
+                st.subheader("Comparativo Anual (Vitórias, Poles, Pódios)")
+                stats_anual_query = "SELECT c.ano, SUM(CASE WHEN r.posicao_final = 1 THEN 1 ELSE 0 END) AS vitorias, SUM(CASE WHEN r.posicao_grid = 1 THEN 1 ELSE 0 END) AS poles, SUM(CASE WHEN r.posicao_final <= 3 THEN 1 ELSE 0 END) AS podios FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE r.id_piloto_fk = %(id)s GROUP BY c.ano ORDER BY c.ano;"
+                stats_anual_df = consultar_dados_df(stats_anual_query, params={'id': id_piloto})
+                if not stats_anual_df.empty:
+                    stats_anual_df_melted = stats_anual_df.melt(id_vars='ano', value_vars=['vitorias', 'poles', 'podios'], var_name='Estatística', value_name='Total')
+                    fig_stats_anual_piloto = px.bar(stats_anual_df_melted, x='ano', y='Total', color='Estatística', barmode='group', text_auto=True, color_discrete_map={'vitorias': F1_RED, 'poles': F1_GREY, 'podios': F1_BLACK})
+                    st.plotly_chart(fig_stats_anual_piloto, use_container_width=True)
+
 
                 col_chart3, col_chart4 = st.columns(2)
                 with col_chart3:
@@ -137,37 +143,33 @@ if pagina_selecionada == "Análises":
                     if not dist_df.empty:
                         fig_dist_piloto = px.pie(dist_df, names='resultado', values='total', hole=0.3, color_discrete_sequence=F1_PALETTE)
                         st.plotly_chart(fig_dist_piloto, use_container_width=True)
-                
                 with col_chart4:
-                    st.subheader("Comparativo Grid vs. Final por Ano")
-                    grid_final_ano_query = "SELECT c.ano, AVG(r.posicao_grid) as media_grid, AVG(r.posicao_final) as media_final FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE r.id_piloto_fk = %(id)s GROUP BY c.ano ORDER BY c.ano;"
-                    grid_final_ano_df = consultar_dados_df(grid_final_ano_query, params={'id': id_piloto})
-                    if not grid_final_ano_df.empty:
-                        fig_grid_final_piloto = px.line(grid_final_ano_df, x='ano', y=['media_grid', 'media_final'], labels={'value': 'Posição Média', 'ano': 'Temporada', 'variable': 'Tipo'}, color_discrete_map={'media_grid': F1_GREY, 'media_final': F1_RED})
-                        fig_grid_final_piloto.update_traces(mode='markers+lines')
-                        st.plotly_chart(fig_grid_final_piloto, use_container_width=True)
+                    st.subheader("Pontos por Temporada")
+                    pontos_query = "SELECT c.ano, SUM(r.pontos) as pontos FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE r.id_piloto_fk = %(id)s GROUP BY c.ano ORDER BY c.ano;"
+                    pontos_df = consultar_dados_df(pontos_query, params={'id': id_piloto})
+                    if not pontos_df.empty:
+                        fig_pontos_piloto = px.bar(pontos_df, x='ano', y='pontos', text_auto=True, color_discrete_sequence=[F1_RED], labels={'ano': 'Temporada', 'pontos': 'Pontos'})
+                        st.plotly_chart(fig_pontos_piloto, use_container_width=True)
 
     with tab_equipe:
         st.header("Análise de Performance de Equipe")
         equipes_df = consultar_dados_df("SELECT id_construtor, nome, nacionalidade FROM tbl_construtores ORDER BY nome")
         if not equipes_df.empty:
             equipe_selecionada = st.selectbox("Selecione uma Equipe", options=equipes_df["nome"], index=None, placeholder="Digite o nome de uma equipe...", key="sel_equipe")
-
-            if equipe_selecionada:
+            if not equipe_selecionada:
+                st.info("Selecione uma equipe para visualizar suas estatísticas.")
+            else:
                 equipe_info = equipes_df[equipes_df["nome"] == equipe_selecionada].iloc[0]
                 id_equipe = int(equipe_info["id_construtor"])
                 
                 with st.container(border=True):
-                    c1, c2, c3 = st.columns(3)
-                    with c1:
-                        st.markdown(f"<h2 style='text-align: left;'>{equipe_info['nome']}</h2>", unsafe_allow_html=True)
-                    with c2:
-                        st.metric("País", str(equipe_info['nacionalidade']))
+                    c1, c2, c3 = st.columns([2,1,1])
+                    with c1: st.markdown(f"<h2 style='text-align: left;'>{equipe_info['nome']}</h2>", unsafe_allow_html=True)
+                    with c2: st.metric("País", str(equipe_info['nacionalidade']))
                     with c3:
-                        total_pilotos_query = "SELECT COUNT(DISTINCT id_piloto_fk) as total_pilotos FROM tbl_resultados WHERE id_construtor_fk = %(id)s;"
+                        total_pilotos_query = "SELECT COUNT(DISTINCT id_piloto_fk) as total FROM tbl_resultados WHERE id_construtor_fk = %(id)s;"
                         total_pilotos_df = consultar_dados_df(total_pilotos_query, params={'id': id_equipe})
-                        if not total_pilotos_df.empty:
-                            st.metric("Total de Pilotos na História", total_pilotos_df.iloc[0]['total_pilotos'])
+                        st.metric("Total de Pilotos na História", total_pilotos_df.iloc[0]['total'] if not total_pilotos_df.empty else 0)
 
                 st.subheader("Resumo Histórico")
                 kpi_equipe_query = """
@@ -181,6 +183,7 @@ if pagina_selecionada == "Análises":
                         SUM(CASE WHEN posicao_final = 1 THEN 1 ELSE 0 END) as vitorias,
                         SUM(CASE WHEN posicao_grid = 1 THEN 1 ELSE 0 END) AS poles,
                         SUM(CASE WHEN posicao_final <= 3 THEN 1 ELSE 0 END) as podios,
+                        SUM(CASE WHEN id_rank_volta_rapida = 1 THEN 1 ELSE 0 END) AS voltas_rapidas,
                         SUM(pontos) as total_pontos,
                         COALESCE((SELECT titulos FROM constructor_champs), 0) as titulos
                     FROM tbl_resultados WHERE id_construtor_fk = %(id_equipe)s;
@@ -189,14 +192,35 @@ if pagina_selecionada == "Análises":
                 
                 if not kpi_equipe_df.empty:
                     kpi_equipe_data = kpi_equipe_df.iloc[0]
-                    c1, c2, c3, c4, c5 = st.columns(5)
+                    c1, c2, c3, c4, c5, c6 = st.columns(6)
                     c1.metric("🏆 Títulos", int(kpi_equipe_data["titulos"]))
                     c2.metric("🏎️ Corridas", int(kpi_equipe_data["total_corridas"]))
                     c3.metric("🥇 Vitórias", int(kpi_equipe_data["vitorias"]))
                     c4.metric("🥈 Pódios", int(kpi_equipe_data["podios"]))
                     c5.metric("⏱️ Poles", int(kpi_equipe_data["poles"]))
+                    c6.metric("🚀 Voltas R.", int(kpi_equipe_data["voltas_rapidas"]))
+
+                    st.subheader("Métricas de Performance da Equipe")
+                    c1, c2, c3 = st.columns(3)
+                    pole_win_conv = (kpi_equipe_data["vitorias"] / kpi_equipe_data["poles"] * 100) if kpi_equipe_data["poles"] > 0 else 0
+                    c1.metric("Conversão Pole > Vitória", f"{pole_win_conv:.1f}%")
+
+                    dobradinhas_query = "SELECT COUNT(*) as total FROM (SELECT id_corrida_fk FROM tbl_resultados WHERE id_construtor_fk = %(id)s AND posicao_final IN (1, 2) GROUP BY id_corrida_fk HAVING COUNT(DISTINCT id_piloto_fk) = 2) as dobradinhas;"
+                    dobradinhas_df = consultar_dados_df(dobradinhas_query, params={'id': id_equipe})
+                    c2.metric("Dobradinhas (1º e 2º)", dobradinhas_df.iloc[0]['total'] if not dobradinhas_df.empty else 0)
+
+                    primeira_vitoria_query = "SELECT c.ano FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE r.id_construtor_fk = %(id)s AND r.posicao_final = 1 ORDER BY c.ano ASC LIMIT 1;"
+                    primeira_vitoria_df = consultar_dados_df(primeira_vitoria_query, params={'id': id_equipe})
+                    c3.metric("Ano da Primeira Vitória", primeira_vitoria_df.iloc[0]['ano'] if not primeira_vitoria_df.empty else "N/A")
+
 
                 st.divider()
+                st.subheader("Dobradinhas por Temporada")
+                dobradinhas_ano_query = "SELECT c.ano, COUNT(*) as total FROM (SELECT r.id_corrida_fk FROM tbl_resultados r WHERE r.id_construtor_fk = %(id)s AND r.posicao_final IN (1, 2) GROUP BY r.id_corrida_fk HAVING COUNT(DISTINCT r.id_piloto_fk) = 2) as dobradinhas JOIN tbl_corridas c ON dobradinhas.id_corrida_fk = c.id_corrida GROUP BY c.ano ORDER BY c.ano;"
+                dobradinhas_ano_df = consultar_dados_df(dobradinhas_ano_query, params={'id': id_equipe})
+                if not dobradinhas_ano_df.empty:
+                    fig_dobradinhas_ano = px.bar(dobradinhas_ano_df, x='ano', y='total', text_auto=True, color_discrete_sequence=[F1_BLACK], labels={'ano': 'Temporada', 'total': 'Total de Dobradinhas'})
+                    st.plotly_chart(fig_dobradinhas_ano, use_container_width=True)
 
                 g1, g2 = st.columns(2)
                 with g1:
@@ -214,18 +238,6 @@ if pagina_selecionada == "Análises":
                         fig_top_pilotos_equipe = px.pie(pilotos_pontos_df, names='piloto', values='total_pontos', hole=0.3, color_discrete_sequence=F1_PALETTE)
                         st.plotly_chart(fig_top_pilotos_equipe, use_container_width=True)
 
-                st.subheader("Evolução de Pódios por Temporada")
-                podios_temporada_query = "SELECT c.ano, SUM(CASE WHEN r.posicao_final <= 3 THEN 1 ELSE 0 END) as podios FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE r.id_construtor_fk = %(id)s GROUP BY c.ano HAVING SUM(CASE WHEN r.posicao_final <= 3 THEN 1 ELSE 0 END) > 0 ORDER BY c.ano;"
-                podios_temporada_df = consultar_dados_df(podios_temporada_query, params={'id': id_equipe})
-                if not podios_temporada_df.empty:
-                    fig_podios_equipe = px.line(podios_temporada_df, x='ano', y='podios', text='podios', markers=True, color_discrete_sequence=[F1_GREY])
-                    fig_podios_equipe.update_traces(textposition="top center")
-                    st.plotly_chart(fig_podios_equipe, use_container_width=True)
-                
-                st.subheader("Lista de Vitórias da Equipe")
-                vitorias_equipe_query = f"SELECT c.ano, c.nome_gp, p.nome || ' ' || p.sobrenome as piloto FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto WHERE r.id_construtor_fk = {id_equipe} AND r.posicao_final = 1 ORDER BY c.ano DESC;"
-                vitorias_equipe_df = consultar_dados_df(vitorias_equipe_query)
-                st.dataframe(vitorias_equipe_df, use_container_width=True)
 
     with tab_h2h:
         st.header("Comparador de Pilotos: Head-to-Head")
@@ -246,121 +258,51 @@ if pagina_selecionada == "Análises":
                 if piloto1_nome and piloto2_nome:
                     id_piloto1 = int(pilotos_df_h2h[pilotos_df_h2h["nome_completo"] == piloto1_nome].iloc[0]['id_piloto'])
                     id_piloto2 = int(pilotos_df_h2h[pilotos_df_h2h["nome_completo"] == piloto2_nome].iloc[0]['id_piloto'])
+                    params_h2h = {'p1': id_piloto1, 'p2': id_piloto2, 'n1': piloto1_nome, 'n2': piloto2_nome, 'sy': start_year, 'ey': end_year}
+
+                    st.divider()
+                    st.subheader(f"Análise Gráfica Comparativa ({start_year}-{end_year})")
                     
-                    with st.spinner("Analisando dados do Head-to-Head..."):
-                        h2h_data_query = """
-                            WITH results_filtered AS (
-                                SELECT r.* FROM tbl_resultados r
-                                JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida
-                                WHERE c.ano BETWEEN %(sy)s AND %(ey)s AND r.id_piloto_fk IN (%(p1)s, %(p2)s)
-                            ),
-                            pilot_champs AS (
-                                SELECT piloto, COUNT(*) as titulos FROM (
-                                    SELECT p.nome || ' ' || p.sobrenome as piloto FROM tbl_resultados r
-                                    JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto
-                                    WHERE c.ano BETWEEN %(sy)s AND %(ey)s
-                                    GROUP BY c.ano, p.nome, p.sobrenome, r.id_piloto_fk
-                                    HAVING SUM(r.pontos) = (SELECT MAX(total_pontos) FROM (SELECT SUM(pontos) as total_pontos FROM tbl_resultados r2 JOIN tbl_corridas c2 ON r2.id_corrida_fk = c2.id_corrida WHERE c2.ano = c.ano GROUP BY r2.id_piloto_fk) as sub)
-                                ) as champs WHERE piloto IN (%(n1)s, %(n2)s) GROUP BY piloto
-                            )
-                            SELECT
-                                p.id_piloto, p.nome || ' ' || p.sobrenome as piloto_nome, p.nacionalidade, p.numero,
-                                COUNT(rf.id_resultado) AS total_corridas,
-                                SUM(CASE WHEN rf.posicao_final = 1 THEN 1 ELSE 0 END) AS vitorias,
-                                SUM(CASE WHEN rf.posicao_grid = 1 THEN 1 ELSE 0 END) AS poles,
-                                SUM(CASE WHEN rf.posicao_final <= 3 THEN 1 ELSE 0 END) AS podios,
-                                SUM(rf.pontos) AS total_pontos,
-                                AVG(rf.posicao_grid) as media_grid, AVG(rf.posicao_final) as media_final,
-                                COALESCE((SELECT titulos FROM pilot_champs pc WHERE pc.piloto = p.nome || ' ' || p.sobrenome), 0) as titulos
-                            FROM tbl_pilotos p
-                            LEFT JOIN results_filtered rf ON p.id_piloto = rf.id_piloto_fk
-                            WHERE p.id_piloto IN (%(p1)s, %(p2)s)
-                            GROUP BY p.id_piloto, p.nome, p.sobrenome, p.nacionalidade, p.numero;
-                        """
-                        params = {'p1': id_piloto1, 'p2': id_piloto2, 'n1': piloto1_nome, 'n2': piloto2_nome, 'sy': start_year, 'ey': end_year}
-                        h2h_df = consultar_dados_df(h2h_data_query, params=params)
-                        
-                        if not h2h_df.empty and len(h2h_df) == 2:
-                            piloto1_data = h2h_df[h2h_df['id_piloto'] == id_piloto1].iloc[0]
-                            piloto2_data = h2h_df[h2h_df['id_piloto'] == id_piloto2].iloc[0]
-                            
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                with st.container(border=True):
-                                    st.markdown(f"<h5 style='text-align: center;'>{piloto1_data['piloto_nome']}</h5>", unsafe_allow_html=True)
-                                    c1_sub, c2_sub, c3_sub = st.columns(3)
-                                    c1_sub.metric("País", str(piloto1_data['nacionalidade']))
-                                    c2_sub.metric("Número", "N/A" if pd.isna(piloto1_data['numero']) else int(piloto1_data['numero']))
-                                    vitorias_equipe_p1_q = "SELECT con.nome FROM tbl_resultados r JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE r.id_piloto_fk = %(id)s AND c.ano BETWEEN %(sy)s AND %(ey)s AND r.posicao_final = 1 GROUP BY con.nome ORDER BY COUNT(*) DESC LIMIT 1;"
-                                    vitorias_equipe_p1_df = consultar_dados_df(vitorias_equipe_p1_q, params={'id': id_piloto1, 'sy': start_year, 'ey': end_year})
-                                    c3_sub.metric("Equipe (Mais Vitórias)", vitorias_equipe_p1_df.iloc[0]['nome'] if not vitorias_equipe_p1_df.empty else "Nenhuma")
-                                st.subheader(" ") 
-                                c1, c2, c3 = st.columns(3)
-                                c1.metric("Títulos", int(piloto1_data["titulos"]))
-                                c2.metric("Vitórias", int(piloto1_data["vitorias"]))
-                                c3.metric("Pódios", int(piloto1_data["podios"]))
-                                c4, c5, c6 = st.columns(3)
-                                c4.metric("Poles", int(piloto1_data["poles"]))
-                                c5.metric("Corridas", int(piloto1_data["total_corridas"]))
-                                c6.metric("Pontos", int(piloto1_data["total_pontos"]))
-                            with col2:
-                                with st.container(border=True):
-                                    st.markdown(f"<h5 style='text-align: center;'>{piloto2_data['piloto_nome']}</h5>", unsafe_allow_html=True)
-                                    c1_sub, c2_sub, c3_sub = st.columns(3)
-                                    c1_sub.metric("País", str(piloto2_data['nacionalidade']))
-                                    c2_sub.metric("Número", "N/A" if pd.isna(piloto2_data['numero']) else int(piloto2_data['numero']))
-                                    vitorias_equipe_p2_q = "SELECT con.nome FROM tbl_resultados r JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE r.id_piloto_fk = %(id)s AND c.ano BETWEEN %(sy)s AND %(ey)s AND r.posicao_final = 1 GROUP BY con.nome ORDER BY COUNT(*) DESC LIMIT 1;"
-                                    vitorias_equipe_p2_df = consultar_dados_df(vitorias_equipe_p2_q, params={'id': id_piloto2, 'sy': start_year, 'ey': end_year})
-                                    c3_sub.metric("Equipe (Mais Vitórias)", vitorias_equipe_p2_df.iloc[0]['nome'] if not vitorias_equipe_p2_df.empty else "Nenhuma")
-                                st.subheader(" ")
-                                c1, c2, c3 = st.columns(3)
-                                c1.metric("Títulos", int(piloto2_data["titulos"]))
-                                c2.metric("Vitórias", int(piloto2_data["vitorias"]))
-                                c3.metric("Pódios", int(piloto2_data["podios"]))
-                                c4, c5, c6 = st.columns(3)
-                                c4.metric("Poles", int(piloto2_data["poles"]))
-                                c5.metric("Corridas", int(piloto2_data["total_corridas"]))
-                                c6.metric("Pontos", int(piloto2_data["total_pontos"]))
+                    g1, g2 = st.columns(2)
+                    with g1:
+                        st.markdown("##### Pódios por Temporada")
+                        podios_h2h_q = "SELECT c.ano, p.nome || ' ' || p.sobrenome as piloto, SUM(CASE WHEN r.posicao_final <= 3 THEN 1 ELSE 0 END) as podios FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto WHERE r.id_piloto_fk IN (%(p1)s, %(p2)s) AND c.ano BETWEEN %(sy)s AND %(ey)s GROUP BY c.ano, piloto ORDER BY c.ano;"
+                        podios_h2h_df = consultar_dados_df(podios_h2h_q, params=params_h2h)
+                        if not podios_h2h_df.empty:
+                            fig_podios_h2h = px.bar(podios_h2h_df, x='ano', y='podios', color='piloto', barmode='group', text_auto=True, color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY})
+                            st.plotly_chart(fig_podios_h2h, use_container_width=True)
+                    with g2:
+                        st.markdown("##### Poles por Temporada")
+                        poles_h2h_q = "SELECT c.ano, p.nome || ' ' || p.sobrenome as piloto, SUM(CASE WHEN r.posicao_grid = 1 THEN 1 ELSE 0 END) as poles FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto WHERE r.id_piloto_fk IN (%(p1)s, %(p2)s) AND c.ano BETWEEN %(sy)s AND %(ey)s GROUP BY c.ano, piloto ORDER BY c.ano;"
+                        poles_h2h_df = consultar_dados_df(poles_h2h_q, params=params_h2h)
+                        if not poles_h2h_df.empty:
+                            fig_poles_h2h = px.bar(poles_h2h_df, x='ano', y='poles', color='piloto', barmode='group', text_auto=True, color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY})
+                            st.plotly_chart(fig_poles_h2h, use_container_width=True)
 
-                        st.divider()
-                        st.subheader(f"Análise Gráfica ({start_year}-{end_year})")
-                        pos_df_p1 = pd.DataFrame({'Tipo de Posição': ['Grid', 'Final'], 'Posição Média': [piloto1_data['media_grid'], piloto1_data['media_final']], 'piloto': piloto1_nome})
-                        pos_df_p2 = pd.DataFrame({'Tipo de Posição': ['Grid', 'Final'], 'Posição Média': [piloto2_data['media_grid'], piloto2_data['media_final']], 'piloto': piloto2_nome})
-                        pos_h2h_df = pd.concat([pos_df_p1, pos_df_p2])
-                        fig_pos_h2h = px.bar(pos_h2h_df, x='Tipo de Posição', y='Posição Média', color='piloto', barmode='group', text_auto='.2f', labels={'Posição Média': 'Posição Média', 'piloto': 'Piloto', 'Tipo de Posição': ''}, color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY}, title="Posição Média (Grid vs. Final)")
-                        st.plotly_chart(fig_pos_h2h, use_container_width=True)
-
-
-                        st.divider()
-                        st.subheader("Confronto Direto (em corridas que ambos participaram)")
-
-                        confronto_query = f"""
-                            WITH corridas_filtradas AS (
-                                SELECT id_corrida FROM tbl_corridas WHERE ano BETWEEN {start_year} AND {end_year}
-                            ),
-                            corridas_comuns AS (
-                                SELECT id_corrida_fk FROM tbl_resultados WHERE id_piloto_fk = {id_piloto1} AND id_corrida_fk IN (SELECT id_corrida FROM corridas_filtradas)
-                                INTERSECT
-                                SELECT id_corrida_fk FROM tbl_resultados WHERE id_piloto_fk = {id_piloto2} AND id_corrida_fk IN (SELECT id_corrida FROM corridas_filtradas)
-                            )
-                            SELECT id_corrida_fk,
-                                   MAX(CASE WHEN id_piloto_fk = {id_piloto1} THEN posicao_final END) as p1_pos,
-                                   MAX(CASE WHEN id_piloto_fk = {id_piloto2} THEN posicao_final END) as p2_pos
-                            FROM tbl_resultados
-                            WHERE id_corrida_fk IN (SELECT id_corrida_fk FROM corridas_comuns)
-                            GROUP BY id_corrida_fk
-                        """
-                        confronto_df = consultar_dados_df(confronto_query, params=params)
-                            if not confronto_df.empty:
-                                confronto_df.dropna(inplace=True) 
-                                p1_a_frente = (confronto_df['p1_pos'] < confronto_df['p2_pos']).sum()
-                                p2_a_frente = (confronto_df['p2_pos'] < confronto_df['p1_pos']).sum()
-                                fig_confronto_h2h = px.bar(x=[piloto1_nome, piloto2_nome], y=[p1_a_frente, p2_a_frente], labels={'x': 'Piloto', 'y': 'Vezes que terminou à frente'}, color=[piloto1_nome, piloto2_nome], color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY}, text_auto=True)
-                                fig_confronto_h2h.update_layout(showlegend=False)
-                                st.plotly_chart(fig_confronto_h2h, use_container_width=True)
-
-        else:
-            st.error("Não foi possível carregar os dados para o filtro de temporada. Verifique a conexão com o banco de dados e se a tabela 'tbl_corridas' contém dados.")
+                    st.subheader("Confrontos Diretos")
+                    g1, g2 = st.columns(2)
+                    with g1:
+                        st.markdown("##### Final de Corrida")
+                        confronto_query = "WITH corridas_comuns AS (SELECT id_corrida_fk FROM tbl_resultados WHERE id_piloto_fk = %(p1)s AND id_corrida_fk IN (SELECT id_corrida FROM tbl_corridas WHERE ano BETWEEN %(sy)s AND %(ey)s) INTERSECT SELECT id_corrida_fk FROM tbl_resultados WHERE id_piloto_fk = %(p2)s AND id_corrida_fk IN (SELECT id_corrida FROM tbl_corridas WHERE ano BETWEEN %(sy)s AND %(ey)s)) SELECT MAX(CASE WHEN id_piloto_fk = %(p1)s THEN posicao_final END) as p1_pos, MAX(CASE WHEN id_piloto_fk = %(p2)s THEN posicao_final END) as p2_pos FROM tbl_resultados WHERE id_corrida_fk IN (SELECT id_corrida_fk FROM corridas_comuns) GROUP BY id_corrida_fk"
+                        confronto_df = consultar_dados_df(confronto_query, params=params_h2h)
+                        if not confronto_df.empty:
+                            confronto_df.dropna(inplace=True) 
+                            p1_a_frente = (confronto_df['p1_pos'] < confronto_df['p2_pos']).sum()
+                            p2_a_frente = (confronto_df['p2_pos'] < confronto_df['p1_pos']).sum()
+                            fig_confronto_h2h = px.bar(x=[piloto1_nome, piloto2_nome], y=[p1_a_frente, p2_a_frente], labels={'x': 'Piloto', 'y': 'Vezes que terminou à frente'}, color=[piloto1_nome, piloto2_nome], color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY}, text_auto=True)
+                            fig_confronto_h2h.update_layout(showlegend=False)
+                            st.plotly_chart(fig_confronto_h2h, use_container_width=True)
+                    with g2:
+                        st.markdown("##### Qualificação")
+                        confronto_quali_q = "WITH corridas_comuns AS (SELECT id_corrida_fk FROM tbl_resultados WHERE id_piloto_fk = %(p1)s AND id_corrida_fk IN (SELECT id_corrida FROM tbl_corridas WHERE ano BETWEEN %(sy)s AND %(ey)s) INTERSECT SELECT id_corrida_fk FROM tbl_resultados WHERE id_piloto_fk = %(p2)s AND id_corrida_fk IN (SELECT id_corrida FROM tbl_corridas WHERE ano BETWEEN %(sy)s AND %(ey)s)) SELECT MAX(CASE WHEN id_piloto_fk = %(p1)s THEN posicao_grid END) as p1_pos, MAX(CASE WHEN id_piloto_fk = %(p2)s THEN posicao_grid END) as p2_pos FROM tbl_resultados WHERE id_corrida_fk IN (SELECT id_corrida_fk FROM corridas_comuns) GROUP BY id_corrida_fk"
+                        confronto_quali_df = consultar_dados_df(confronto_quali_q, params=params_h2h)
+                        if not confronto_quali_df.empty:
+                            confronto_quali_df.dropna(inplace=True)
+                            p1_grid_melhor = (confronto_quali_df['p1_pos'] < confronto_quali_df['p2_pos']).sum()
+                            p2_grid_melhor = (confronto_quali_df['p2_pos'] < confronto_quali_df['p1_pos']).sum()
+                            fig_quali_h2h = px.bar(x=[piloto1_nome, piloto2_nome], y=[p1_grid_melhor, p2_grid_melhor], labels={'x': 'Piloto', 'y': 'Vezes que largou à frente'}, color=[piloto1_nome, piloto2_nome], color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY}, text_auto=True)
+                            fig_quali_h2h.update_layout(showlegend=False)
+                            st.plotly_chart(fig_quali_h2h, use_container_width=True)
 
     with tab_circ:
         st.header("Análise por Circuito")
@@ -371,197 +313,76 @@ if pagina_selecionada == "Análises":
                 circuito_info = circuitos_df[circuitos_df["nome"] == circuito_nome].iloc[0]
                 id_circuito = int(circuito_info["id_circuito"])
                 
-                st.subheader(circuito_info['nome'])
-                with st.container(border=True):
-                    c1, c2 = st.columns(2)
-                    c1.metric("Cidade", circuito_info['cidade'])
-                    c2.metric("País", circuito_info['pais'])
-                
-                st.subheader(f"Resumo Histórico do Circuito")
-                
-                kpi_circ_query = f"""
-                    WITH poles AS (
-                        SELECT COUNT(*) as total_poles FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE c.id_circuito_fk={id_circuito} AND r.posicao_grid = 1
-                    ), wins_from_pole AS (
-                        SELECT COUNT(*) as wins_fp FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE c.id_circuito_fk={id_circuito} AND r.posicao_grid = 1 AND r.posicao_final = 1
-                    )
-                    SELECT
-                        (SELECT p.nome || ' ' || p.sobrenome FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida WHERE c.id_circuito_fk={id_circuito} AND r.posicao_final=1 GROUP BY p.nome, p.sobrenome ORDER BY COUNT(*) DESC LIMIT 1) as maior_vencedor,
-                        (SELECT con.nome FROM tbl_resultados r JOIN tbl_construtores con ON r.id_construtor_fk=con.id_construtor JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida WHERE c.id_circuito_fk={id_circuito} AND r.posicao_final=1 GROUP BY con.nome ORDER BY COUNT(*) DESC LIMIT 1) as equipe_vitoriosa,
-                        (SELECT p.nome || ' ' || p.sobrenome FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida WHERE c.id_circuito_fk={id_circuito} AND r.posicao_grid=1 GROUP BY p.nome, p.sobrenome ORDER BY COUNT(*) DESC LIMIT 1) as maior_pole,
-                        (SELECT CAST(wins_fp AS FLOAT) / total_poles * 100 FROM poles, wins_from_pole) as pole_win_rate
-                    FROM tbl_corridas WHERE id_circuito_fk={id_circuito} LIMIT 1;
-                """
-                kpi_circ_df = consultar_dados_df(kpi_circ_query).iloc[0]
+                st.subheader(f"Resumo Histórico do Circuito: {circuito_info['nome']}")
+                kpi_circ_query = "WITH poles AS (SELECT COUNT(*) as total_poles FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_grid = 1), wins_from_pole AS (SELECT COUNT(*) as wins_fp FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_grid = 1 AND r.posicao_final = 1) SELECT (SELECT COUNT(DISTINCT ano) FROM tbl_corridas WHERE id_circuito_fk=%(id)s) as total_corridas, (SELECT p.nome || ' ' || p.sobrenome FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_final=1 GROUP BY p.nome, p.sobrenome ORDER BY COUNT(*) DESC LIMIT 1) as maior_vencedor, (SELECT p.nome || ' ' || p.sobrenome FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.id_rank_volta_rapida=1 GROUP BY p.nome, p.sobrenome ORDER BY COUNT(*) DESC LIMIT 1) as mais_voltas_rapidas, (SELECT CAST(wins_fp AS FLOAT) / total_poles * 100 FROM poles, wins_from_pole) as pole_win_rate FROM tbl_corridas WHERE id_circuito_fk=%(id)s LIMIT 1;"
+                kpi_circ_df = consultar_dados_df(kpi_circ_query, params={'id': id_circuito}).iloc[0]
                 c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Maior Vencedor", str(kpi_circ_df["maior_vencedor"]))
-                c2.metric("Equipe com Mais Vitórias", str(kpi_circ_df["equipe_vitoriosa"]))
-                c3.metric("Recordista de Poles", str(kpi_circ_df["maior_pole"]))
-                c4.metric("% Vitórias da Pole", f"{kpi_circ_df['pole_win_rate']:.1f}%")
+                c1.metric("Total de Corridas", int(kpi_circ_df["total_corridas"]))
+                c2.metric("Maior Vencedor", str(kpi_circ_df["maior_vencedor"]))
+                c3.metric("Mais Voltas Rápidas", str(kpi_circ_df["mais_voltas_rapidas"]))
+                c4.metric("% Vitórias da Pole", f"{kpi_circ_df['pole_win_rate']:.1f}%" if kpi_circ_df['pole_win_rate'] else "N/A")
                 st.divider()
+
+                st.subheader("De Onde Saem os Vencedores?")
+                grid_vencedor_q = "SELECT posicao_grid FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_final = 1 AND r.posicao_grid IS NOT NULL;"
+                grid_vencedor_df = consultar_dados_df(grid_vencedor_q, params={'id': id_circuito})
+                if not grid_vencedor_df.empty:
+                    fig_grid_vencedor = px.histogram(grid_vencedor_df, x='posicao_grid', nbins=20, text_auto=True, color_discrete_sequence=[F1_BLACK], labels={'posicao_grid': 'Posição de Largada', 'count': 'Número de Vitórias'})
+                    fig_grid_vencedor.update_layout(bargap=0.2)
+                    st.plotly_chart(fig_grid_vencedor, use_container_width=True)
 
                 g1, g2 = st.columns(2)
                 with g1:
                     st.subheader("Top 10 Pilotos Vencedores")
                     vencedores_query = "SELECT p.nome || ' ' || p.sobrenome as piloto, COUNT(*) as vitorias FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto WHERE c.id_circuito_fk=%(id)s AND r.posicao_final=1 GROUP BY piloto ORDER BY vitorias DESC LIMIT 10;"
                     vencedores_df = consultar_dados_df(vencedores_query, params={'id': id_circuito})
-                    if not vencedores_df.empty:
-                        fig_vencedores_circ = px.bar(vencedores_df, x='vitorias', y='piloto', orientation='h', color_discrete_sequence=[F1_RED], text_auto=True)
-                        fig_vencedores_circ.update_layout(yaxis={'categoryorder':'total ascending'})
-                        st.plotly_chart(fig_vencedores_circ, use_container_width=True)
+                    fig_vencedores_circ = px.bar(vencedores_df, x='vitorias', y='piloto', orientation='h', color_discrete_sequence=[F1_RED], text_auto=True)
+                    fig_vencedores_circ.update_layout(yaxis={'categoryorder':'total ascending'})
+                    st.plotly_chart(fig_vencedores_circ, use_container_width=True)
                 with g2:
                     st.subheader("Top 10 Equipes Vitoriosas")
                     vencedores_eq_query = "SELECT con.nome as equipe, COUNT(*) as vitorias FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida JOIN tbl_construtores con ON r.id_construtor_fk=con.id_construtor WHERE c.id_circuito_fk=%(id)s AND r.posicao_final=1 GROUP BY equipe ORDER BY vitorias DESC LIMIT 10;"
                     vencedores_eq_df = consultar_dados_df(vencedores_eq_query, params={'id': id_circuito})
-                    if not vencedores_eq_df.empty:
-                        fig_vencedores_eq_circ = px.bar(vencedores_eq_df, x='vitorias', y='equipe', orientation='h', color_discrete_sequence=[F1_GREY], text_auto=True)
-                        fig_vencedores_eq_circ.update_layout(yaxis={'categoryorder':'total ascending'})
-                        st.plotly_chart(fig_vencedores_eq_circ, use_container_width=True)
-
-                g3, g4 = st.columns(2)
-                with g3:
-                    st.subheader("Top 10 Pilotos (Poles)")
-                    poles_piloto_query = "SELECT p.nome || ' ' || p.sobrenome as piloto, COUNT(*) as poles FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto WHERE c.id_circuito_fk=%(id)s AND r.posicao_grid=1 GROUP BY piloto ORDER BY poles DESC LIMIT 10;"
-                    poles_piloto_df = consultar_dados_df(poles_piloto_query, params={'id': id_circuito})
-                    if not poles_piloto_df.empty:
-                        fig_poles_piloto_circ = px.bar(poles_piloto_df, x='poles', y='piloto', orientation='h', color_discrete_sequence=[F1_RED], text_auto=True)
-                        fig_poles_piloto_circ.update_layout(yaxis={'categoryorder':'total ascending'})
-                        st.plotly_chart(fig_poles_piloto_circ, use_container_width=True)
-                with g4:
-                    st.subheader("Poles por Equipe")
-                    poles_equipe_query = "SELECT con.nome as equipe, COUNT(*) as poles FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor WHERE c.id_circuito_fk = %(id)s AND r.posicao_grid = 1 GROUP BY equipe ORDER BY poles DESC;"
-                    poles_equipe_df = consultar_dados_df(poles_equipe_query, params={'id': id_circuito})
-                    if not poles_equipe_df.empty:
-                        fig_poles_equipe_circ = px.pie(poles_equipe_df, names='equipe', values='poles', hole=0.3, color_discrete_sequence=F1_PALETTE)
-                        st.plotly_chart(fig_poles_equipe_circ, use_container_width=True)
+                    fig_vencedores_eq_circ = px.bar(vencedores_eq_df, x='vitorias', y='equipe', orientation='h', color_discrete_sequence=[F1_GREY], text_auto=True)
+                    fig_vencedores_eq_circ.update_layout(yaxis={'categoryorder':'total ascending'})
+                    st.plotly_chart(fig_vencedores_eq_circ, use_container_width=True)
 
     with tab_records:
-        st.header("Hall da Fama: Recordes Históricos da F1")
-        
-        query_records = """
-            WITH pilot_champs_yearly AS (SELECT c.ano, p.nome || ' ' || p.sobrenome as piloto FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto GROUP BY c.ano, p.nome, p.sobrenome HAVING SUM(r.pontos) = (SELECT MAX(total_pontos) FROM (SELECT SUM(pontos) as total_pontos FROM tbl_resultados r2 JOIN tbl_corridas c2 ON r2.id_corrida_fk = c2.id_corrida WHERE c2.ano = c.ano GROUP BY r2.id_piloto_fk) as sub)),
-            pilot_champs_agg AS (SELECT piloto, COUNT(*) as titulos FROM pilot_champs_yearly GROUP BY piloto),
-            constructor_champs_yearly AS (SELECT c.ano, con.nome as construtor FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor GROUP BY c.ano, con.nome HAVING SUM(r.pontos) = (SELECT MAX(total_pontos) FROM (SELECT SUM(pontos) as total_pontos FROM tbl_resultados r2 JOIN tbl_corridas c2 ON r2.id_corrida_fk = c2.id_corrida WHERE c2.ano = c.ano GROUP BY r2.id_construtor_fk) as sub)),
-            constructor_champs_agg AS (SELECT construtor, COUNT(*) as titulos FROM constructor_champs_yearly GROUP BY construtor),
-            pilot_stats AS (SELECT p.nome || ' ' || p.sobrenome as piloto, SUM(CASE WHEN r.posicao_final = 1 THEN 1 ELSE 0 END) as vitorias, SUM(CASE WHEN r.posicao_grid = 1 THEN 1 ELSE 0 END) as poles, SUM(CASE WHEN r.posicao_final <= 3 THEN 1 ELSE 0 END) as podios FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto GROUP BY piloto),
-            constructor_stats AS (SELECT con.nome as construtor, SUM(CASE WHEN r.posicao_final = 1 THEN 1 ELSE 0 END) as vitorias, SUM(CASE WHEN r.posicao_grid = 1 THEN 1 ELSE 0 END) as poles, SUM(CASE WHEN r.posicao_final <= 3 THEN 1 ELSE 0 END) as podios FROM tbl_resultados r JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor GROUP BY construtor)
-            SELECT
-                (SELECT piloto FROM pilot_champs_agg ORDER BY titulos DESC LIMIT 1) as recordista_titulos_piloto, (SELECT titulos FROM pilot_champs_agg ORDER BY titulos DESC LIMIT 1) as recorde_titulos_piloto,
-                (SELECT construtor FROM constructor_champs_agg ORDER BY titulos DESC LIMIT 1) as recordista_titulos_equipe, (SELECT titulos FROM constructor_champs_agg ORDER BY titulos DESC LIMIT 1) as recorde_titulos_equipe,
-                (SELECT piloto FROM pilot_stats ORDER BY vitorias DESC LIMIT 1) as recordista_vitorias_piloto, (SELECT vitorias FROM pilot_stats ORDER BY vitorias DESC LIMIT 1) as recorde_vitorias_piloto,
-                (SELECT construtor FROM constructor_stats ORDER BY vitorias DESC LIMIT 1) as recordista_vitorias_equipe, (SELECT vitorias FROM constructor_stats ORDER BY vitorias DESC LIMIT 1) as recorde_vitorias_equipe,
-                (SELECT piloto FROM pilot_stats ORDER BY poles DESC LIMIT 1) as recordista_poles_piloto, (SELECT poles FROM pilot_stats ORDER BY poles DESC LIMIT 1) as recorde_poles_piloto,
-                (SELECT construtor FROM constructor_stats ORDER BY poles DESC LIMIT 1) as recordista_poles_equipe, (SELECT poles FROM constructor_stats ORDER BY poles DESC LIMIT 1) as recorde_poles_equipe,
-                (SELECT piloto FROM pilot_stats ORDER BY podios DESC LIMIT 1) as recordista_podios_piloto, (SELECT podios FROM pilot_stats ORDER BY podios DESC LIMIT 1) as recorde_podios_piloto,
-                (SELECT construtor FROM constructor_stats ORDER BY podios DESC LIMIT 1) as recordista_podios_equipe, (SELECT podios FROM constructor_stats ORDER BY podios DESC LIMIT 1) as recorde_podios_equipe;
-        """
-        
-        records_df = consultar_dados_df(query_records)
+        st.header("Hall da Fama: Recordes e Rankings Históricos")
+        st.subheader("Recordistas de Todos os Tempos")
+        query_records = "WITH pilot_champs_agg AS (SELECT piloto, COUNT(*) as titulos FROM (SELECT c.ano, p.nome || ' ' || p.sobrenome as piloto FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto GROUP BY c.ano, p.nome, p.sobrenome HAVING SUM(r.pontos) = (SELECT MAX(total_pontos) FROM (SELECT SUM(pontos) as total_pontos FROM tbl_resultados r2 JOIN tbl_corridas c2 ON r2.id_corrida_fk = c2.id_corrida WHERE c2.ano = c.ano GROUP BY r2.id_piloto_fk) as sub)) as champs GROUP BY piloto), constructor_champs_agg AS (SELECT construtor, COUNT(*) as titulos FROM (SELECT c.ano, con.nome as construtor FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor GROUP BY c.ano, con.nome HAVING SUM(r.pontos) = (SELECT MAX(total_pontos) FROM (SELECT SUM(pontos) as total_pontos FROM tbl_resultados r2 JOIN tbl_corridas c2 ON r2.id_corrida_fk = c2.id_corrida WHERE c2.ano = c.ano GROUP BY r2.id_construtor_fk) as sub)) as champs GROUP BY construtor), pilot_stats AS (SELECT p.nome || ' ' || p.sobrenome as piloto, SUM(CASE WHEN r.posicao_final = 1 THEN 1 ELSE 0 END) as vitorias, SUM(CASE WHEN r.posicao_grid = 1 THEN 1 ELSE 0 END) as poles, SUM(CASE WHEN r.posicao_final <= 3 THEN 1 ELSE 0 END) as podios, SUM(CASE WHEN r.id_rank_volta_rapida = 1 THEN 1 ELSE 0 END) as voltas_rapidas FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto GROUP BY piloto), constructor_stats AS (SELECT con.nome as construtor, SUM(CASE WHEN r.posicao_final = 1 THEN 1 ELSE 0 END) as vitorias, SUM(CASE WHEN r.posicao_grid = 1 THEN 1 ELSE 0 END) as poles, SUM(CASE WHEN r.posicao_final <= 3 THEN 1 ELSE 0 END) as podios, SUM(CASE WHEN r.id_rank_volta_rapida = 1 THEN 1 ELSE 0 END) as voltas_rapidas FROM tbl_resultados r JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor GROUP BY construtor) SELECT * FROM (SELECT piloto as recordista, titulos as recorde, 'Títulos (Piloto)' as tipo FROM pilot_champs_agg ORDER BY recorde DESC LIMIT 1) a UNION ALL SELECT * FROM (SELECT construtor, titulos, 'Títulos (Equipe)' FROM constructor_champs_agg ORDER BY titulos DESC LIMIT 1) b UNION ALL SELECT * FROM (SELECT piloto, vitorias, 'Vitórias (Piloto)' FROM pilot_stats ORDER BY vitorias DESC LIMIT 1) c UNION ALL SELECT * FROM (SELECT construtor, vitorias, 'Vitórias (Equipe)' FROM constructor_stats ORDER BY vitorias DESC LIMIT 1) d UNION ALL SELECT * FROM (SELECT piloto, poles, 'Poles (Piloto)' FROM pilot_stats ORDER BY poles DESC LIMIT 1) e UNION ALL SELECT * FROM (SELECT construtor, poles, 'Poles (Equipe)' FROM constructor_stats ORDER BY poles DESC LIMIT 1) f UNION ALL SELECT * FROM (SELECT piloto, podios, 'Pódios (Piloto)' FROM pilot_stats ORDER BY podios DESC LIMIT 1) g UNION ALL SELECT * FROM (SELECT construtor, podios, 'Pódios (Equipe)' FROM constructor_stats ORDER BY podios DESC LIMIT 1) h UNION ALL SELECT * FROM (SELECT piloto, voltas_rapidas, 'Voltas Rápidas (Piloto)' FROM pilot_stats ORDER BY voltas_rapidas DESC LIMIT 1) i UNION ALL SELECT * FROM (SELECT construtor, voltas_rapidas, 'Voltas Rápidas (Equipe)' FROM constructor_stats ORDER BY voltas_rapidas DESC LIMIT 1) j;"
+        records_df = consultar_dados_df(query_records).set_index('tipo')
         if not records_df.empty:
-            rec = records_df.iloc[0]
-            st.subheader("Recordes de Pilotos")
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("🏆 Mais Títulos", rec['recordista_titulos_piloto'], f"{int(rec['recorde_titulos_piloto'])} Títulos")
-            c2.metric("🥇 Mais Vitórias", rec['recordista_vitorias_piloto'], f"{int(rec['recorde_vitorias_piloto'])} Vitórias")
-            c3.metric("⏱️ Mais Poles", rec['recordista_poles_piloto'], f"{int(rec['recorde_poles_piloto'])} Poles")
-            c4.metric("🥈 Mais Pódios", rec['recordista_podios_piloto'], f"{int(rec['recorde_podios_piloto'])} Pódios")
-            
-            st.subheader("Recordes de Equipes (Construtores)")
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("🏆 Mais Títulos", rec['recordista_titulos_equipe'], f"{int(rec['recorde_titulos_equipe'])} Títulos")
-            c2.metric("🥇 Mais Vitórias", rec['recordista_vitorias_equipe'], f"{int(rec['recorde_vitorias_equipe'])} Vitórias")
-            c3.metric("⏱️ Mais Poles", rec['recordista_poles_equipe'], f"{int(rec['recorde_poles_equipe'])} Poles")
-            c4.metric("🥈 Mais Pódios", rec['recordista_podios_equipe'], f"{int(rec['recorde_podios_equipe'])} Pódios")
-            
-        st.divider()
+            st.markdown("##### Pilotos")
+            c1, c2, c3, c4, c5 = st.columns(5)
+            c1.metric("🏆 Mais Títulos", records_df.loc['Títulos (Piloto)']['recordista'], f"{int(records_df.loc['Títulos (Piloto)']['recorde'])}")
+            c2.metric("🥇 Mais Vitórias", records_df.loc['Vitórias (Piloto)']['recordista'], f"{int(records_df.loc['Vitórias (Piloto)']['recorde'])}")
+            c3.metric("🥈 Mais Pódios", records_df.loc['Pódios (Piloto)']['recordista'], f"{int(records_df.loc['Pódios (Piloto)']['recorde'])}")
+            c4.metric("⏱️ Mais Poles", records_df.loc['Poles (Piloto)']['recordista'], f"{int(records_df.loc['Poles (Piloto)']['recorde'])}")
+            c5.metric("🚀 Mais Voltas R.", records_df.loc['Voltas Rápidas (Piloto)']['recordista'], f"{int(records_df.loc['Voltas Rápidas (Piloto)']['recorde'])}")
+            st.markdown("##### Equipes")
+            c1, c2, c3, c4, c5 = st.columns(5)
+            c1.metric("🏆 Mais Títulos", records_df.loc['Títulos (Equipe)']['recordista'], f"{int(records_df.loc['Títulos (Equipe)']['recorde'])}")
+            c2.metric("🥇 Mais Vitórias", records_df.loc['Vitórias (Equipe)']['recordista'], f"{int(records_df.loc['Vitórias (Equipe)']['recorde'])}")
+            c3.metric("🥈 Mais Pódios", records_df.loc['Pódios (Equipe)']['recordista'], f"{int(records_df.loc['Pódios (Equipe)']['recorde'])}")
+            c4.metric("⏱️ Mais Poles", records_df.loc['Poles (Equipe)']['recordista'], f"{int(records_df.loc['Poles (Equipe)']['recorde'])}")
+            c5.metric("🚀 Mais Voltas R.", records_df.loc['Voltas Rápidas (Equipe)']['recordista'], f"{int(records_df.loc['Voltas Rápidas (Equipe)']['recorde'])}")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Ranking de Títulos de Pilotos")
-            query_pilot_champs_rank = "WITH yearly_points AS (SELECT c.ano, p.nome || ' ' || p.sobrenome as piloto, SUM(r.pontos) as total_pontos FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto GROUP BY c.ano, piloto), yearly_max_points AS (SELECT ano, MAX(total_pontos) as max_pontos FROM yearly_points GROUP BY ano), champions AS (SELECT yp.ano, yp.piloto FROM yearly_points yp JOIN yearly_max_points ymp ON yp.ano = ymp.ano AND yp.total_pontos = ymp.max_pontos) SELECT piloto, COUNT(*) as titulos FROM champions GROUP BY piloto ORDER BY titulos DESC LIMIT 15;"
-            pilot_champs_df = consultar_dados_df(query_pilot_champs_rank)
-            if not pilot_champs_df.empty:
-                fig_pilot_champs_rank = px.bar(pilot_champs_df, x='titulos', y='piloto', orientation='h', text_auto=True, labels={'titulos': 'Títulos Mundiais', 'piloto': 'Piloto'}, color_discrete_sequence=[F1_RED])
-                fig_pilot_champs_rank.update_layout(yaxis={'categoryorder':'total ascending'})
-                st.plotly_chart(fig_pilot_champs_rank, use_container_width=True)
-        with col2:
-            st.subheader("Ranking de Títulos de Construtores")
-            query_constructor_champs_rank = "WITH yearly_points AS (SELECT c.ano, con.nome as construtor, SUM(r.pontos) as total_pontos FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor GROUP BY c.ano, construtor), yearly_max_points AS (SELECT ano, MAX(total_pontos) as max_pontos FROM yearly_points GROUP BY ano), champions AS (SELECT yp.ano, yp.construtor FROM yearly_points yp JOIN yearly_max_points ymp ON yp.ano = ymp.ano AND yp.total_pontos = ymp.max_pontos) SELECT construtor, COUNT(*) as titulos FROM champions GROUP BY construtor ORDER BY titulos DESC LIMIT 15;"
-            constructor_champs_df = consultar_dados_df(query_constructor_champs_rank)
-            if not constructor_champs_df.empty:
-                fig_constructor_champs_rank = px.bar(constructor_champs_df, x='titulos', y='construtor', orientation='h', text_auto=True, labels={'titulos': 'Títulos Mundais', 'construtor': 'Equipe'}, color_discrete_sequence=[F1_GREY])
-                fig_constructor_champs_rank.update_layout(yaxis={'categoryorder':'total ascending'})
-                st.plotly_chart(fig_constructor_champs_rank, use_container_width=True)
-                
         st.divider()
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Títulos de Pilotos")
-            query_pilot_champs = """
-                WITH yearly_points AS (
-                    SELECT c.ano, r.id_piloto_fk, p.nome || ' ' || p.sobrenome as piloto, SUM(r.pontos) as total_pontos
-                    FROM tbl_resultados r
-                    JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida
-                    JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto
-                    GROUP BY c.ano, r.id_piloto_fk, piloto
-                ),
-                yearly_max_points AS (
-                    SELECT ano, MAX(total_pontos) as max_pontos
-                    FROM yearly_points
-                    GROUP BY ano
-                ),
-                champions AS (
-                    SELECT yp.ano, yp.piloto
-                    FROM yearly_points yp
-                    JOIN yearly_max_points ymp ON yp.ano = ymp.ano AND yp.total_pontos = ymp.max_pontos
-                )
-                SELECT piloto, COUNT(*) as titulos
-                FROM champions
-                GROUP BY piloto
-                ORDER BY titulos DESC
-                LIMIT 15;
-            """
-            pilot_champs_df = consultar_dados_df(query_pilot_champs)
-            if not pilot_champs_df.empty:
-                fig = px.bar(pilot_champs_df, x='titulos', y='piloto', orientation='h', text_auto=True,
-                             labels={'titulos': 'Títulos Mundiais', 'piloto': 'Piloto'},
-                             color_discrete_sequence=[F1_RED])
-                fig.update_layout(yaxis={'categoryorder':'total ascending'})
+        st.subheader("Rankings Top 15 de Todos os Tempos")
+        tab_vitorias, tab_podios, tab_poles, tab_voltas_rapidas, tab_titulos = st.tabs(["Vitórias", "Pódios", "Poles", "Voltas Rápidas", "Títulos"])
+        
+        with tab_vitorias:
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("###### Pilotos com mais vitórias")
+                vitorias_p_df = consultar_dados_df("SELECT p.nome || ' ' || p.sobrenome as piloto, COUNT(*) as vitorias FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto WHERE r.posicao_final = 1 GROUP BY piloto ORDER BY vitorias DESC LIMIT 15;")
+                fig = px.bar(vitorias_p_df, x='vitorias', y='piloto', orientation='h', text_auto=True, color_discrete_sequence=[F1_RED]).update_layout(yaxis={'categoryorder':'total ascending'})
                 st.plotly_chart(fig, use_container_width=True)
-
-        with col2:
-            st.subheader("Títulos de Construtores")
-            query_constructor_champs = """
-                WITH yearly_points AS (
-                    SELECT c.ano, r.id_construtor_fk, con.nome as construtor, SUM(r.pontos) as total_pontos
-                    FROM tbl_resultados r
-                    JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida
-                    JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor
-                    GROUP BY c.ano, r.id_construtor_fk, construtor
-                ),
-                yearly_max_points AS (
-                    SELECT ano, MAX(total_pontos) as max_pontos
-                    FROM yearly_points
-                    GROUP BY ano
-                ),
-                champions AS (
-                    SELECT yp.ano, yp.construtor
-                    FROM yearly_points yp
-                    JOIN yearly_max_points ymp ON yp.ano = ymp.ano AND yp.total_pontos = ymp.max_pontos
-                )
-                SELECT construtor, COUNT(*) as titulos
-                FROM champions
-                GROUP BY construtor
-                ORDER BY titulos DESC
-                LIMIT 15;
-            """
-            constructor_champs_df = consultar_dados_df(query_constructor_champs)
-            if not constructor_champs_df.empty:
-                fig = px.bar(constructor_champs_df, x='titulos', y='construtor', orientation='h', text_auto=True,
-                             labels={'titulos': 'Títulos Mundais', 'construtor': 'Equipe'},
-                             color_discrete_sequence=[F1_GREY])
-                fig.update_layout(yaxis={'categoryorder':'total ascending'})
+            with c2:
+                st.markdown("###### Equipes com mais vitórias")
+                vitorias_e_df = consultar_dados_df("SELECT con.nome as equipe, COUNT(*) as vitorias FROM tbl_resultados r JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor WHERE r.posicao_final = 1 GROUP BY equipe ORDER BY vitorias DESC LIMIT 15;")
+                fig = px.bar(vitorias_e_df, x='vitorias', y='equipe', orientation='h', text_auto=True, color_discrete_sequence=[F1_GREY]).update_layout(yaxis={'categoryorder':'total ascending'})
                 st.plotly_chart(fig, use_container_width=True)
 
 elif pagina_selecionada == "Gerenciamento":
@@ -595,7 +416,7 @@ elif pagina_selecionada == "Gerenciamento":
             nova_nac = st.text_input("Digite a Nova Nacionalidade", key=f"nac_{id_constr}")
             if st.button("Atualizar Nacionalidade"):
                 sql = "UPDATE tbl_construtores SET nacionalidade = %s WHERE id_construtor = %s"
-                if executar_comando_sql(sql, (nova_nac, id_constr)):
+                if executar_comando_sql(sql, (nova_nac, int(id_constr))):
                     st.success(f"Nacionalidade de '{constr_sel}' atualizada!")
     with tab_delete:
         st.subheader("Deletar um Piloto")
@@ -608,6 +429,7 @@ elif pagina_selecionada == "Gerenciamento":
                 if st.button(f"DELETAR {piloto_del}", type="primary"):
                     id_piloto_del = pilotos_del_df[pilotos_del_df["nome_completo"] == piloto_del]["id_piloto"].iloc[0]
                     sql = "DELETE FROM tbl_pilotos WHERE id_piloto = %s"
-                    if executar_comando_sql(sql, (id_piloto_del,)):
+                    if executar_comando_sql(sql, (int(id_piloto_del),)):
                         st.success(f"Piloto '{piloto_del}' deletado!")
                         st.rerun()
+
