@@ -51,7 +51,7 @@ with st.sidebar:
 if pagina_selecionada == "Análises":
     st.title("📊 Análises e Dashboards de F1")
     
-    tab_piloto, tab_equipe, tab_h2h, tab_circ, tab_champs = st.tabs(["Dashboard de Piloto", "Dashboard de Equipe", "Comparador H2H", "Análise de Circuito", "🏆 Campeões"])
+    tab_piloto, tab_equipe, tab_h2h, tab_circ, tab_champs = st.tabs(["Dashboard de Piloto", "Dashboard de Equipe", "Comparador H2H", "Análise de Circuito", "Campeões"])
 
     with tab_piloto:
         st.header("Análise de Performance de Piloto")
