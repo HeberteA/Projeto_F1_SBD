@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 from streamlit_option_menu import option_menu
 
-st.set_page_config(layout="wide", page_title="F1 Super Analytics", page_icon="f1.png")
+st.set_page_config(layout="wide", page_title="F1 Analytics", page_icon="f1.png")
 
 F1_PALETTE = ["#E10600", "#15151E", "#7F7F7F", "#B1B1B8", "#FFFFFF"] 
 F1_RED = F1_PALETTE[0]
