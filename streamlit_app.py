@@ -321,7 +321,7 @@ if pagina_selecionada == "Análises":
                                 c4.metric("Poles", int(piloto2_data["poles"]))
                                 c5.metric("Corridas", int(piloto2_data["total_corridas"]))
                                 c6.metric("Pontos", int(piloto2_data["total_pontos"]))
-                                
+
                         st.divider()
                         st.subheader(f"Análise Gráfica ({start_year}-{end_year})")
                         pos_df_p1 = pd.DataFrame({'Tipo de Posição': ['Grid', 'Final'], 'Posição Média': [piloto1_data['media_grid'], piloto1_data['media_final']], 'piloto': piloto1_nome})
