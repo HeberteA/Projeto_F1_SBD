@@ -94,7 +94,7 @@ if pagina_selecionada == "Análises":
                         SUM(CASE WHEN posicao_final <= 3 THEN 1 ELSE 0 END) AS podios,
                         SUM(pontos) AS total_pontos,
                         AVG(pontos) AS media_pontos,
-                        SUM(CASE WHEN id_rank_volta_rapida = 1 THEN 1 ELSE 0 END) AS voltas_rapidas,
+                        SUM(CASE WHEN rank_volta_rapida = 1 THEN 1 ELSE 0 END) AS voltas_rapidas,
                         COALESCE((SELECT titulos FROM pilot_champs), 0) as titulos
                     FROM tbl_resultados WHERE id_piloto_fk = %(id_piloto)s;
                 """
@@ -183,7 +183,7 @@ if pagina_selecionada == "Análises":
                         SUM(CASE WHEN posicao_final = 1 THEN 1 ELSE 0 END) as vitorias,
                         SUM(CASE WHEN posicao_grid = 1 THEN 1 ELSE 0 END) AS poles,
                         SUM(CASE WHEN posicao_final <= 3 THEN 1 ELSE 0 END) as podios,
-                        SUM(CASE WHEN id_rank_volta_rapida = 1 THEN 1 ELSE 0 END) AS voltas_rapidas,
+                        SUM(CASE WHEN rank_volta_rapida = 1 THEN 1 ELSE 0 END) AS voltas_rapidas,
                         SUM(pontos) as total_pontos,
                         COALESCE((SELECT titulos FROM constructor_champs), 0) as titulos
                     FROM tbl_resultados WHERE id_construtor_fk = %(id_equipe)s;
@@ -353,8 +353,8 @@ if pagina_selecionada == "Análises":
         query_records = """
             WITH pilot_champs_agg AS (SELECT piloto, COUNT(*) as titulos FROM (SELECT c.ano, p.nome || ' ' || p.sobrenome as piloto FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto GROUP BY c.ano, p.nome, p.sobrenome HAVING SUM(r.pontos) = (SELECT MAX(total_pontos) FROM (SELECT SUM(pontos) as total_pontos FROM tbl_resultados r2 JOIN tbl_corridas c2 ON r2.id_corrida_fk = c2.id_corrida WHERE c2.ano = c.ano GROUP BY r2.id_piloto_fk) as sub)) as champs GROUP BY piloto),
             constructor_champs_agg AS (SELECT construtor, COUNT(*) as titulos FROM (SELECT c.ano, con.nome as construtor FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor GROUP BY c.ano, con.nome HAVING SUM(r.pontos) = (SELECT MAX(total_pontos) FROM (SELECT SUM(pontos) as total_pontos FROM tbl_resultados r2 JOIN tbl_corridas c2 ON r2.id_corrida_fk = c2.id_corrida WHERE c2.ano = c.ano GROUP BY r2.id_construtor_fk) as sub)) as champs GROUP BY construtor),
-            pilot_stats AS (SELECT p.nome || ' ' || p.sobrenome as piloto, SUM(CASE WHEN r.posicao_final = 1 THEN 1 ELSE 0 END) as vitorias, SUM(CASE WHEN r.posicao_grid = 1 THEN 1 ELSE 0 END) as poles, SUM(CASE WHEN r.posicao_final <= 3 THEN 1 ELSE 0 END) as podios, SUM(CASE WHEN r.id_rank_volta_rapida = 1 THEN 1 ELSE 0 END) as voltas_rapidas FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto GROUP BY piloto),
-            constructor_stats AS (SELECT con.nome as construtor, SUM(CASE WHEN r.posicao_final = 1 THEN 1 ELSE 0 END) as vitorias, SUM(CASE WHEN r.posicao_grid = 1 THEN 1 ELSE 0 END) as poles, SUM(CASE WHEN r.posicao_final <= 3 THEN 1 ELSE 0 END) as podios, SUM(CASE WHEN r.id_rank_volta_rapida = 1 THEN 1 ELSE 0 END) as voltas_rapidas FROM tbl_resultados r JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor GROUP BY construtor)
+            pilot_stats AS (SELECT p.nome || ' ' || p.sobrenome as piloto, SUM(CASE WHEN r.posicao_final = 1 THEN 1 ELSE 0 END) as vitorias, SUM(CASE WHEN r.posicao_grid = 1 THEN 1 ELSE 0 END) as poles, SUM(CASE WHEN r.posicao_final <= 3 THEN 1 ELSE 0 END) as podios, SUM(CASE WHEN r.rank_volta_rapida = 1 THEN 1 ELSE 0 END) as voltas_rapidas FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto GROUP BY piloto),
+            constructor_stats AS (SELECT con.nome as construtor, SUM(CASE WHEN r.posicao_final = 1 THEN 1 ELSE 0 END) as vitorias, SUM(CASE WHEN r.posicao_grid = 1 THEN 1 ELSE 0 END) as poles, SUM(CASE WHEN r.posicao_final <= 3 THEN 1 ELSE 0 END) as podios, SUM(CASE WHEN r.rank_volta_rapida = 1 THEN 1 ELSE 0 END) as voltas_rapidas FROM tbl_resultados r JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor GROUP BY construtor)
             SELECT * FROM (SELECT piloto as recordista, titulos as recorde, 'Títulos (Piloto)' as tipo FROM pilot_champs_agg ORDER BY recorde DESC LIMIT 1) a
             UNION ALL
             SELECT * FROM (SELECT construtor as recordista, titulos as recorde, 'Títulos (Equipe)' as tipo FROM constructor_champs_agg ORDER BY recorde DESC LIMIT 1) b
