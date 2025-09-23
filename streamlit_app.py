@@ -322,42 +322,42 @@ if pagina_selecionada == "Análises":
                                 c5.metric("Corridas", int(piloto2_data["total_corridas"]))
                                 c6.metric("Pontos", int(piloto2_data["total_pontos"]))
                                 
-                    st.divider()
-                    st.subheader(f"Análise Gráfica ({start_year}-{end_year})")
-                    pos_df_p1 = pd.DataFrame({'Tipo de Posição': ['Grid', 'Final'], 'Posição Média': [piloto1_data['media_grid'], piloto1_data['media_final']], 'piloto': piloto1_nome})
-                    pos_df_p2 = pd.DataFrame({'Tipo de Posição': ['Grid', 'Final'], 'Posição Média': [piloto2_data['media_grid'], piloto2_data['media_final']], 'piloto': piloto2_nome})
-                    pos_h2h_df = pd.concat([pos_df_p1, pos_df_p2])
-                    fig_pos_h2h = px.bar(pos_h2h_df, x='Tipo de Posição', y='Posição Média', color='piloto', barmode='group', text_auto='.2f', labels={'Posição Média': 'Posição Média', 'piloto': 'Piloto', 'Tipo de Posição': ''}, color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY}, title="Posição Média (Grid vs. Final)")
-                    st.plotly_chart(fig_pos_h2h, use_container_width=True)
+                        st.divider()
+                        st.subheader(f"Análise Gráfica ({start_year}-{end_year})")
+                        pos_df_p1 = pd.DataFrame({'Tipo de Posição': ['Grid', 'Final'], 'Posição Média': [piloto1_data['media_grid'], piloto1_data['media_final']], 'piloto': piloto1_nome})
+                        pos_df_p2 = pd.DataFrame({'Tipo de Posição': ['Grid', 'Final'], 'Posição Média': [piloto2_data['media_grid'], piloto2_data['media_final']], 'piloto': piloto2_nome})
+                        pos_h2h_df = pd.concat([pos_df_p1, pos_df_p2])
+                        fig_pos_h2h = px.bar(pos_h2h_df, x='Tipo de Posição', y='Posição Média', color='piloto', barmode='group', text_auto='.2f', labels={'Posição Média': 'Posição Média', 'piloto': 'Piloto', 'Tipo de Posição': ''}, color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY}, title="Posição Média (Grid vs. Final)")
+                        st.plotly_chart(fig_pos_h2h, use_container_width=True)
 
 
-                    st.divider()
-                    st.subheader("Confronto Direto (em corridas que ambos participaram)")
+                        st.divider()
+                        st.subheader("Confronto Direto (em corridas que ambos participaram)")
 
-                    confronto_query = f"""
-                        WITH corridas_filtradas AS (
-                            SELECT id_corrida FROM tbl_corridas WHERE ano BETWEEN {start_year} AND {end_year}
-                        ),
-                        corridas_comuns AS (
-                            SELECT id_corrida_fk FROM tbl_resultados WHERE id_piloto_fk = {id_piloto1} AND id_corrida_fk IN (SELECT id_corrida FROM corridas_filtradas)
-                            INTERSECT
-                            SELECT id_corrida_fk FROM tbl_resultados WHERE id_piloto_fk = {id_piloto2} AND id_corrida_fk IN (SELECT id_corrida FROM corridas_filtradas)
-                        )
-                        SELECT id_corrida_fk,
-                               MAX(CASE WHEN id_piloto_fk = {id_piloto1} THEN posicao_final END) as p1_pos,
-                               MAX(CASE WHEN id_piloto_fk = {id_piloto2} THEN posicao_final END) as p2_pos
-                        FROM tbl_resultados
-                        WHERE id_corrida_fk IN (SELECT id_corrida_fk FROM corridas_comuns)
-                        GROUP BY id_corrida_fk
-                    """
-                    confronto_df = consultar_dados_df(confronto_query, params=params)
-                        if not confronto_df.empty:
-                            confronto_df.dropna(inplace=True) 
-                            p1_a_frente = (confronto_df['p1_pos'] < confronto_df['p2_pos']).sum()
-                            p2_a_frente = (confronto_df['p2_pos'] < confronto_df['p1_pos']).sum()
-                            fig_confronto_h2h = px.bar(x=[piloto1_nome, piloto2_nome], y=[p1_a_frente, p2_a_frente], labels={'x': 'Piloto', 'y': 'Vezes que terminou à frente'}, color=[piloto1_nome, piloto2_nome], color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY}, text_auto=True)
-                            fig_confronto_h2h.update_layout(showlegend=False)
-                            st.plotly_chart(fig_confronto_h2h, use_container_width=True)
+                        confronto_query = f"""
+                            WITH corridas_filtradas AS (
+                                SELECT id_corrida FROM tbl_corridas WHERE ano BETWEEN {start_year} AND {end_year}
+                            ),
+                            corridas_comuns AS (
+                                SELECT id_corrida_fk FROM tbl_resultados WHERE id_piloto_fk = {id_piloto1} AND id_corrida_fk IN (SELECT id_corrida FROM corridas_filtradas)
+                                INTERSECT
+                                SELECT id_corrida_fk FROM tbl_resultados WHERE id_piloto_fk = {id_piloto2} AND id_corrida_fk IN (SELECT id_corrida FROM corridas_filtradas)
+                            )
+                            SELECT id_corrida_fk,
+                                   MAX(CASE WHEN id_piloto_fk = {id_piloto1} THEN posicao_final END) as p1_pos,
+                                   MAX(CASE WHEN id_piloto_fk = {id_piloto2} THEN posicao_final END) as p2_pos
+                            FROM tbl_resultados
+                            WHERE id_corrida_fk IN (SELECT id_corrida_fk FROM corridas_comuns)
+                            GROUP BY id_corrida_fk
+                        """
+                        confronto_df = consultar_dados_df(confronto_query, params=params)
+                            if not confronto_df.empty:
+                                confronto_df.dropna(inplace=True) 
+                                p1_a_frente = (confronto_df['p1_pos'] < confronto_df['p2_pos']).sum()
+                                p2_a_frente = (confronto_df['p2_pos'] < confronto_df['p1_pos']).sum()
+                                fig_confronto_h2h = px.bar(x=[piloto1_nome, piloto2_nome], y=[p1_a_frente, p2_a_frente], labels={'x': 'Piloto', 'y': 'Vezes que terminou à frente'}, color=[piloto1_nome, piloto2_nome], color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY}, text_auto=True)
+                                fig_confronto_h2h.update_layout(showlegend=False)
+                                st.plotly_chart(fig_confronto_h2h, use_container_width=True)
 
         else:
             st.error("Não foi possível carregar os dados para o filtro de temporada. Verifique a conexão com o banco de dados e se a tabela 'tbl_corridas' contém dados.")
