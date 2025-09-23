@@ -247,7 +247,7 @@ if pagina_selecionada == "Análises":
                     id_piloto1 = int(pilotos_df_h2h[pilotos_df_h2h["nome_completo"] == piloto1_nome].iloc[0]['id_piloto'])
                     id_piloto2 = int(pilotos_df_h2h[pilotos_df_h2h["nome_completo"] == piloto2_nome].iloc[0]['id_piloto'])
                     
-                     h2h_data_query = f"""
+                    h2h_data_query = f"""
                         WITH results_filtered AS (
                             SELECT r.* FROM tbl_resultados r
                             JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida
