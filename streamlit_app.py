@@ -323,14 +323,12 @@ if pagina_selecionada == "Análises":
                                 c6.metric("Pontos", int(piloto2_data["total_pontos"]))
                                 
                     st.divider()
-
-                    st.divider()
-                        st.subheader(f"Análise Gráfica ({start_year}-{end_year})")
-                        pos_df_p1 = pd.DataFrame({'Tipo de Posição': ['Grid', 'Final'], 'Posição Média': [piloto1_data['media_grid'], piloto1_data['media_final']], 'piloto': piloto1_nome})
-                        pos_df_p2 = pd.DataFrame({'Tipo de Posição': ['Grid', 'Final'], 'Posição Média': [piloto2_data['media_grid'], piloto2_data['media_final']], 'piloto': piloto2_nome})
-                        pos_h2h_df = pd.concat([pos_df_p1, pos_df_p2])
-                        fig_pos_h2h = px.bar(pos_h2h_df, x='Tipo de Posição', y='Posição Média', color='piloto', barmode='group', text_auto='.2f', labels={'Posição Média': 'Posição Média', 'piloto': 'Piloto', 'Tipo de Posição': ''}, color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY}, title="Posição Média (Grid vs. Final)")
-                        st.plotly_chart(fig_pos_h2h, use_container_width=True)
+                    st.subheader(f"Análise Gráfica ({start_year}-{end_year})")
+                    pos_df_p1 = pd.DataFrame({'Tipo de Posição': ['Grid', 'Final'], 'Posição Média': [piloto1_data['media_grid'], piloto1_data['media_final']], 'piloto': piloto1_nome})
+                    pos_df_p2 = pd.DataFrame({'Tipo de Posição': ['Grid', 'Final'], 'Posição Média': [piloto2_data['media_grid'], piloto2_data['media_final']], 'piloto': piloto2_nome})
+                    pos_h2h_df = pd.concat([pos_df_p1, pos_df_p2])
+                    fig_pos_h2h = px.bar(pos_h2h_df, x='Tipo de Posição', y='Posição Média', color='piloto', barmode='group', text_auto='.2f', labels={'Posição Média': 'Posição Média', 'piloto': 'Piloto', 'Tipo de Posição': ''}, color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY}, title="Posição Média (Grid vs. Final)")
+                    st.plotly_chart(fig_pos_h2h, use_container_width=True)
 
 
                     st.divider()
