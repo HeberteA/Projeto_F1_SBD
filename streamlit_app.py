@@ -115,8 +115,8 @@ if pagina_selecionada == "Análises":
                     pontos_query = "SELECT c.ano, SUM(r.pontos) as pontos FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE r.id_piloto_fk = %(id)s GROUP BY c.ano ORDER BY c.ano;"
                     pontos_df = consultar_dados_df(pontos_query, params={'id': id_piloto})
                     if not pontos_df.empty:
-                        fig = px.bar(pontos_df, x='ano', y='pontos', text_auto=True, color_discrete_sequence=[F1_RED], labels={'ano': 'Temporada', 'pontos': 'Pontos'})
-                        st.plotly_chart(fig, use_container_width=True)
+                        fig_pontos_piloto = px.bar(pontos_df, x='ano', y='pontos', text_auto=True, color_discrete_sequence=[F1_RED], labels={'ano': 'Temporada', 'pontos': 'Pontos'})
+                        st.plotly_chart(fig_pontos_piloto, use_container_width=True)
                 
                 with col_chart2:
                     st.subheader("Posição Média (Grid vs. Final)")
@@ -125,9 +125,9 @@ if pagina_selecionada == "Análises":
                     if not pos_df.empty and pos_df.iloc[0]['media_grid'] is not None:
                         pos_df_melted = pos_df.melt(var_name='Tipo de Posição', value_name='Posição Média')
                         pos_df_melted['Tipo de Posição'] = pos_df_melted['Tipo de Posição'].map({'media_grid': 'Grid', 'media_final': 'Final'})
-                        fig = px.bar(pos_df_melted, x='Tipo de Posição', y='Posição Média', text_auto='.2f', color='Tipo de Posição', color_discrete_sequence=[F1_GREY, F1_RED])
-                        fig.update_layout(showlegend=False)
-                        st.plotly_chart(fig, use_container_width=True)
+                        fig_pos_piloto = px.bar(pos_df_melted, x='Tipo de Posição', y='Posição Média', text_auto='.2f', color='Tipo de Posição', color_discrete_sequence=[F1_GREY, F1_RED])
+                        fig_pos_piloto.update_layout(showlegend=False)
+                        st.plotly_chart(fig_pos_piloto, use_container_width=True)
 
                 col_chart3, col_chart4 = st.columns(2)
                 with col_chart3:
@@ -135,17 +135,17 @@ if pagina_selecionada == "Análises":
                     dist_query = "SELECT CASE WHEN posicao_final IS NULL THEN 'Não Terminou (DNF)' WHEN posicao_final BETWEEN 1 AND 3 THEN 'Pódio' WHEN posicao_final BETWEEN 4 AND 10 THEN 'Pontos (4-10)' ELSE 'Fora dos Pontos' END as resultado, COUNT(*) as total FROM tbl_resultados WHERE id_piloto_fk = %(id)s GROUP BY resultado ORDER BY total DESC;"
                     dist_df = consultar_dados_df(dist_query, params={'id': id_piloto})
                     if not dist_df.empty:
-                        fig = px.pie(dist_df, names='resultado', values='total', hole=0.3, color_discrete_sequence=F1_PALETTE)
-                        st.plotly_chart(fig, use_container_width=True)
+                        fig_dist_piloto = px.pie(dist_df, names='resultado', values='total', hole=0.3, color_discrete_sequence=F1_PALETTE)
+                        st.plotly_chart(fig_dist_piloto, use_container_width=True)
                 
                 with col_chart4:
                     st.subheader("Comparativo Grid vs. Final por Ano")
                     grid_final_ano_query = "SELECT c.ano, AVG(r.posicao_grid) as media_grid, AVG(r.posicao_final) as media_final FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE r.id_piloto_fk = %(id)s GROUP BY c.ano ORDER BY c.ano;"
                     grid_final_ano_df = consultar_dados_df(grid_final_ano_query, params={'id': id_piloto})
                     if not grid_final_ano_df.empty:
-                        fig = px.line(grid_final_ano_df, x='ano', y=['media_grid', 'media_final'], labels={'value': 'Posição Média', 'ano': 'Temporada', 'variable': 'Tipo'}, color_discrete_map={'media_grid': F1_GREY, 'media_final': F1_RED})
-                        fig.update_traces(mode='markers+lines')
-                        st.plotly_chart(fig, use_container_width=True)
+                        fig_grid_final_piloto = px.line(grid_final_ano_df, x='ano', y=['media_grid', 'media_final'], labels={'value': 'Posição Média', 'ano': 'Temporada', 'variable': 'Tipo'}, color_discrete_map={'media_grid': F1_GREY, 'media_final': F1_RED})
+                        fig_grid_final_piloto.update_traces(mode='markers+lines')
+                        st.plotly_chart(fig_grid_final_piloto, use_container_width=True)
 
     with tab_equipe:
         st.header("Análise de Performance de Equipe")
@@ -204,23 +204,23 @@ if pagina_selecionada == "Análises":
                     pontos_equipe_query = "SELECT c.ano, SUM(r.pontos) as pontos FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE r.id_construtor_fk = %(id)s GROUP BY c.ano ORDER BY c.ano;"
                     pontos_equipe_df = consultar_dados_df(pontos_equipe_query, params={'id': id_equipe})
                     if not pontos_equipe_df.empty:
-                        fig = px.bar(pontos_equipe_df, x='ano', y='pontos', text_auto=True, color_discrete_sequence=[F1_RED])
-                        st.plotly_chart(fig, use_container_width=True)
+                        fig_pontos_equipe = px.bar(pontos_equipe_df, x='ano', y='pontos', text_auto=True, color_discrete_sequence=[F1_RED])
+                        st.plotly_chart(fig_pontos_equipe, use_container_width=True)
                 with g2:
                     st.subheader("Top 5 Pilotos (Pontos)")
                     pilotos_pontos_query = "SELECT p.nome || ' ' || p.sobrenome as piloto, SUM(r.pontos) as total_pontos FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto WHERE r.id_construtor_fk = %(id)s GROUP BY piloto ORDER BY total_pontos DESC LIMIT 5;"
                     pilotos_pontos_df = consultar_dados_df(pilotos_pontos_query, params={'id': id_equipe})
                     if not pilotos_pontos_df.empty:
-                        fig = px.pie(pilotos_pontos_df, names='piloto', values='total_pontos', hole=0.3, color_discrete_sequence=F1_PALETTE)
-                        st.plotly_chart(fig, use_container_width=True)
+                        fig_top_pilotos_equipe = px.pie(pilotos_pontos_df, names='piloto', values='total_pontos', hole=0.3, color_discrete_sequence=F1_PALETTE)
+                        st.plotly_chart(fig_top_pilotos_equipe, use_container_width=True)
 
                 st.subheader("Evolução de Pódios por Temporada")
                 podios_temporada_query = "SELECT c.ano, SUM(CASE WHEN r.posicao_final <= 3 THEN 1 ELSE 0 END) as podios FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE r.id_construtor_fk = %(id)s GROUP BY c.ano HAVING SUM(CASE WHEN r.posicao_final <= 3 THEN 1 ELSE 0 END) > 0 ORDER BY c.ano;"
                 podios_temporada_df = consultar_dados_df(podios_temporada_query, params={'id': id_equipe})
                 if not podios_temporada_df.empty:
-                    fig = px.line(podios_temporada_df, x='ano', y='podios', text='podios', markers=True, color_discrete_sequence=[F1_GREY])
-                    fig.update_traces(textposition="top center")
-                    st.plotly_chart(fig, use_container_width=True)
+                    fig_podios_equipe = px.line(podios_temporada_df, x='ano', y='podios', text='podios', markers=True, color_discrete_sequence=[F1_GREY])
+                    fig_podios_equipe.update_traces(textposition="top center")
+                    st.plotly_chart(fig_podios_equipe, use_container_width=True)
                 
                 st.subheader("Lista de Vitórias da Equipe")
                 vitorias_equipe_query = f"SELECT c.ano, c.nome_gp, p.nome || ' ' || p.sobrenome as piloto FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto WHERE r.id_construtor_fk = {id_equipe} AND r.posicao_final = 1 ORDER BY c.ano DESC;"
@@ -324,35 +324,17 @@ if pagina_selecionada == "Análises":
                                 
                     st.divider()
 
-                    st.subheader(f"Análise Gráfica ({start_year}-{end_year})")
+                    st.divider()
+                        st.subheader(f"Análise Gráfica ({start_year}-{end_year})")
+                        pos_df_p1 = pd.DataFrame({'Tipo de Posição': ['Grid', 'Final'], 'Posição Média': [piloto1_data['media_grid'], piloto1_data['media_final']], 'piloto': piloto1_nome})
+                        pos_df_p2 = pd.DataFrame({'Tipo de Posição': ['Grid', 'Final'], 'Posição Média': [piloto2_data['media_grid'], piloto2_data['media_final']], 'piloto': piloto2_nome})
+                        pos_h2h_df = pd.concat([pos_df_p1, pos_df_p2])
+                        fig_pos_h2h = px.bar(pos_h2h_df, x='Tipo de Posição', y='Posição Média', color='piloto', barmode='group', text_auto='.2f', labels={'Posição Média': 'Posição Média', 'piloto': 'Piloto', 'Tipo de Posição': ''}, color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY}, title="Posição Média (Grid vs. Final)")
+                        st.plotly_chart(fig_pos_h2h, use_container_width=True)
 
-                    pontos_h2h_query = f"""
-                        SELECT c.ano, p.nome || ' ' || p.sobrenome as piloto, SUM(r.pontos) as pontos 
-                        FROM tbl_resultados r 
-                        JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida 
-                        JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto
-                        WHERE r.id_piloto_fk IN ({id_piloto1}, {id_piloto2}) AND c.ano BETWEEN {start_year} AND {end_year}
-                        GROUP BY c.ano, piloto ORDER BY c.ano;
-                    """
-                    pontos_h2h_df = consultar_dados_df(pontos_h2h_query)
-                    if not pontos_h2h_df.empty:
-                        fig_pontos = px.bar(pontos_h2h_df, x='ano', y='pontos', color='piloto', barmode='group', text_auto=True,
-                                            labels={'ano': 'Temporada', 'pontos': 'Pontos', 'piloto': 'Piloto'},
-                                            color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY},
-                                            title="Pontos por Temporada")
-                        st.plotly_chart(fig_pontos, use_container_width=True)
-                        
-                    pos_df_p1 = pd.DataFrame({'Tipo de Posição': ['Grid', 'Final'], 'Posição Média': [piloto1_data['media_grid'], piloto1_data['media_final']], 'piloto': piloto1_nome})
-                    pos_df_p2 = pd.DataFrame({'Tipo de Posição': ['Grid', 'Final'], 'Posição Média': [piloto2_data['media_grid'], piloto2_data['media_final']], 'piloto': piloto2_nome})
-                    pos_h2h_df = pd.concat([pos_df_p1, pos_df_p2])
-
-                    fig_pos = px.bar(pos_h2h_df, x='Tipo de Posição', y='Posição Média', color='piloto', barmode='group', text_auto='.2f',
-                                     labels={'Posição Média': 'Posição Média', 'piloto': 'Piloto', 'Tipo de Posição': ''},
-                                     color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY},
-                                     title="Posição Média (Grid vs. Final)")
-                    st.plotly_chart(fig_pos, use_container_width=True)
 
                     st.divider()
+                    st.subheader("Confronto Direto (em corridas que ambos participaram)")
 
                     confronto_query = f"""
                         WITH corridas_filtradas AS (
@@ -370,23 +352,14 @@ if pagina_selecionada == "Análises":
                         WHERE id_corrida_fk IN (SELECT id_corrida_fk FROM corridas_comuns)
                         GROUP BY id_corrida_fk
                     """
-                    confronto_df = consultar_dados_df(confronto_query)
-                        
-                    st.subheader("Confronto Direto (em corridas que ambos participaram)")
-                    if not confronto_df.empty:
-                        confronto_df.dropna(inplace=True) 
-                        p1_a_frente = (confronto_df['p1_pos'] < confronto_df['p2_pos']).sum()
-                        p2_a_frente = (confronto_df['p2_pos'] < confronto_df['p1_pos']).sum()
-                            
-                        fig_confronto = px.bar(x=[piloto1_nome, piloto2_nome], y=[p1_a_frente, p2_a_frente],
-                                     labels={'x': 'Piloto', 'y': 'Vezes que terminou à frente'},
-                                     color=[piloto1_nome, piloto2_nome],
-                                     color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY},
-                                     text_auto=True)
-                        fig_confronto.update_layout(showlegend=False)
-                        st.plotly_chart(fig_confronto, use_container_width=True)
-                    else:
-                        st.info("Estes pilotos não competiram um contra o outro no período selecionado.")
+                    confronto_df = consultar_dados_df(confronto_query, params=params)
+                        if not confronto_df.empty:
+                            confronto_df.dropna(inplace=True) 
+                            p1_a_frente = (confronto_df['p1_pos'] < confronto_df['p2_pos']).sum()
+                            p2_a_frente = (confronto_df['p2_pos'] < confronto_df['p1_pos']).sum()
+                            fig_confronto_h2h = px.bar(x=[piloto1_nome, piloto2_nome], y=[p1_a_frente, p2_a_frente], labels={'x': 'Piloto', 'y': 'Vezes que terminou à frente'}, color=[piloto1_nome, piloto2_nome], color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY}, text_auto=True)
+                            fig_confronto_h2h.update_layout(showlegend=False)
+                            st.plotly_chart(fig_confronto_h2h, use_container_width=True)
 
         else:
             st.error("Não foi possível carregar os dados para o filtro de temporada. Verifique a conexão com o banco de dados e se a tabela 'tbl_corridas' contém dados.")
@@ -435,18 +408,17 @@ if pagina_selecionada == "Análises":
                     vencedores_query = "SELECT p.nome || ' ' || p.sobrenome as piloto, COUNT(*) as vitorias FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto WHERE c.id_circuito_fk=%(id)s AND r.posicao_final=1 GROUP BY piloto ORDER BY vitorias DESC LIMIT 10;"
                     vencedores_df = consultar_dados_df(vencedores_query, params={'id': id_circuito})
                     if not vencedores_df.empty:
-                        fig = px.bar(vencedores_df, x='vitorias', y='piloto', orientation='h', color_discrete_sequence=[F1_RED], text_auto=True)
-                        fig.update_layout(yaxis={'categoryorder':'total ascending'})
-                        st.plotly_chart(fig, use_container_width=True)
-                
+                        fig_vencedores_circ = px.bar(vencedores_df, x='vitorias', y='piloto', orientation='h', color_discrete_sequence=[F1_RED], text_auto=True)
+                        fig_vencedores_circ.update_layout(yaxis={'categoryorder':'total ascending'})
+                        st.plotly_chart(fig_vencedores_circ, use_container_width=True)
                 with g2:
                     st.subheader("Top 10 Equipes Vitoriosas")
                     vencedores_eq_query = "SELECT con.nome as equipe, COUNT(*) as vitorias FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida JOIN tbl_construtores con ON r.id_construtor_fk=con.id_construtor WHERE c.id_circuito_fk=%(id)s AND r.posicao_final=1 GROUP BY equipe ORDER BY vitorias DESC LIMIT 10;"
                     vencedores_eq_df = consultar_dados_df(vencedores_eq_query, params={'id': id_circuito})
                     if not vencedores_eq_df.empty:
-                        fig = px.bar(vencedores_eq_df, x='vitorias', y='equipe', orientation='h', color_discrete_sequence=[F1_GREY], text_auto=True)
-                        fig.update_layout(yaxis={'categoryorder':'total ascending'})
-                        st.plotly_chart(fig, use_container_width=True)
+                        fig_vencedores_eq_circ = px.bar(vencedores_eq_df, x='vitorias', y='equipe', orientation='h', color_discrete_sequence=[F1_GREY], text_auto=True)
+                        fig_vencedores_eq_circ.update_layout(yaxis={'categoryorder':'total ascending'})
+                        st.plotly_chart(fig_vencedores_eq_circ, use_container_width=True)
 
                 g3, g4 = st.columns(2)
                 with g3:
@@ -454,17 +426,16 @@ if pagina_selecionada == "Análises":
                     poles_piloto_query = "SELECT p.nome || ' ' || p.sobrenome as piloto, COUNT(*) as poles FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto WHERE c.id_circuito_fk=%(id)s AND r.posicao_grid=1 GROUP BY piloto ORDER BY poles DESC LIMIT 10;"
                     poles_piloto_df = consultar_dados_df(poles_piloto_query, params={'id': id_circuito})
                     if not poles_piloto_df.empty:
-                        fig = px.bar(poles_piloto_df, x='poles', y='piloto', orientation='h', color_discrete_sequence=[F1_RED], text_auto=True)
-                        fig.update_layout(yaxis={'categoryorder':'total ascending'})
-                        st.plotly_chart(fig, use_container_width=True)
-                
+                        fig_poles_piloto_circ = px.bar(poles_piloto_df, x='poles', y='piloto', orientation='h', color_discrete_sequence=[F1_RED], text_auto=True)
+                        fig_poles_piloto_circ.update_layout(yaxis={'categoryorder':'total ascending'})
+                        st.plotly_chart(fig_poles_piloto_circ, use_container_width=True)
                 with g4:
                     st.subheader("Poles por Equipe")
                     poles_equipe_query = "SELECT con.nome as equipe, COUNT(*) as poles FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor WHERE c.id_circuito_fk = %(id)s AND r.posicao_grid = 1 GROUP BY equipe ORDER BY poles DESC;"
                     poles_equipe_df = consultar_dados_df(poles_equipe_query, params={'id': id_circuito})
                     if not poles_equipe_df.empty:
-                        fig = px.pie(poles_equipe_df, names='equipe', values='poles', hole=0.3, color_discrete_sequence=F1_PALETTE)
-                        st.plotly_chart(fig, use_container_width=True)
+                        fig_poles_equipe_circ = px.pie(poles_equipe_df, names='equipe', values='poles', hole=0.3, color_discrete_sequence=F1_PALETTE)
+                        st.plotly_chart(fig_poles_equipe_circ, use_container_width=True)
 
     with tab_records:
         st.header("Hall da Fama: Recordes Históricos da F1")
@@ -512,17 +483,18 @@ if pagina_selecionada == "Análises":
             query_pilot_champs_rank = "WITH yearly_points AS (SELECT c.ano, p.nome || ' ' || p.sobrenome as piloto, SUM(r.pontos) as total_pontos FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto GROUP BY c.ano, piloto), yearly_max_points AS (SELECT ano, MAX(total_pontos) as max_pontos FROM yearly_points GROUP BY ano), champions AS (SELECT yp.ano, yp.piloto FROM yearly_points yp JOIN yearly_max_points ymp ON yp.ano = ymp.ano AND yp.total_pontos = ymp.max_pontos) SELECT piloto, COUNT(*) as titulos FROM champions GROUP BY piloto ORDER BY titulos DESC LIMIT 15;"
             pilot_champs_df = consultar_dados_df(query_pilot_champs_rank)
             if not pilot_champs_df.empty:
-                fig = px.bar(pilot_champs_df, x='titulos', y='piloto', orientation='h', text_auto=True, labels={'titulos': 'Títulos Mundiais', 'piloto': 'Piloto'}, color_discrete_sequence=[F1_RED])
-                fig.update_layout(yaxis={'categoryorder':'total ascending'})
-                st.plotly_chart(fig, use_container_width=True)
+                fig_pilot_champs_rank = px.bar(pilot_champs_df, x='titulos', y='piloto', orientation='h', text_auto=True, labels={'titulos': 'Títulos Mundiais', 'piloto': 'Piloto'}, color_discrete_sequence=[F1_RED])
+                fig_pilot_champs_rank.update_layout(yaxis={'categoryorder':'total ascending'})
+                st.plotly_chart(fig_pilot_champs_rank, use_container_width=True)
         with col2:
             st.subheader("Ranking de Títulos de Construtores")
             query_constructor_champs_rank = "WITH yearly_points AS (SELECT c.ano, con.nome as construtor, SUM(r.pontos) as total_pontos FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor GROUP BY c.ano, construtor), yearly_max_points AS (SELECT ano, MAX(total_pontos) as max_pontos FROM yearly_points GROUP BY ano), champions AS (SELECT yp.ano, yp.construtor FROM yearly_points yp JOIN yearly_max_points ymp ON yp.ano = ymp.ano AND yp.total_pontos = ymp.max_pontos) SELECT construtor, COUNT(*) as titulos FROM champions GROUP BY construtor ORDER BY titulos DESC LIMIT 15;"
             constructor_champs_df = consultar_dados_df(query_constructor_champs_rank)
             if not constructor_champs_df.empty:
-                fig = px.bar(constructor_champs_df, x='titulos', y='construtor', orientation='h', text_auto=True, labels={'titulos': 'Títulos Mundais', 'construtor': 'Equipe'}, color_discrete_sequence=[F1_GREY])
-                fig.update_layout(yaxis={'categoryorder':'total ascending'})
-                st.plotly_chart(fig, use_container_width=True)
+                fig_constructor_champs_rank = px.bar(constructor_champs_df, x='titulos', y='construtor', orientation='h', text_auto=True, labels={'titulos': 'Títulos Mundais', 'construtor': 'Equipe'}, color_discrete_sequence=[F1_GREY])
+                fig_constructor_champs_rank.update_layout(yaxis={'categoryorder':'total ascending'})
+                st.plotly_chart(fig_constructor_champs_rank, use_container_width=True)
+                
         st.divider()
 
         col1, col2 = st.columns(2)
