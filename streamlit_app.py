@@ -51,7 +51,7 @@ with st.sidebar:
 if pagina_selecionada == "Análises":
     st.title("📊 Análises e Dashboards de F1")
     
-    tab_piloto, tab_equipe, tab_h2h, tab_circ, tab_records = st.tabs(["Dashboard de Piloto", "Dashboard de Equipe", "Comparador H2H", "Análise de Circuito", "Hall da Fama"])
+    tab_piloto, tab_equipe, tab_h2h, tab_circ, tab_records = st.tabs(["Dashboard de Piloto", "Dashboard de Equipe", "Comparador H2H", "Análise de Circuito", "🏆 Hall da Fama"])
 
     with tab_piloto:
         st.header("Análise de Performance de Piloto")
@@ -65,7 +65,6 @@ if pagina_selecionada == "Análises":
             else:
                 piloto_info = pilotos_df[pilotos_df["nome_completo"] == piloto_selecionado].iloc[0]
                 id_piloto = int(piloto_info["id_piloto"])
-                
                 with st.container(border=True):
                     c1, c2, c3, c4 = st.columns([2, 1, 1, 1.5])
                     with c1:
@@ -104,14 +103,13 @@ if pagina_selecionada == "Análises":
                     kpi_data = kpi_df.iloc[0]
                     c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
                     c1.metric("🏆 Títulos", int(kpi_data["titulos"]))
-                    c2.metric("🏎️ Corridas", int(kpi_data["total_corridas"]))
+                    c2.metric("Corridas", int(kpi_data["total_corridas"]))
                     c3.metric("🥇 Vitórias", int(kpi_data["vitorias"]))
                     c4.metric("🥈 Pódios", int(kpi_data["podios"]))
                     c5.metric("⏱️ Poles", int(kpi_data["poles"]))
                     c6.metric("🚀 Voltas R.", int(kpi_data["voltas_rapidas"]))
                     c7.metric("Média Pontos", f"{kpi_data['media_pontos']:.2f}" if kpi_data['media_pontos'] else "0.00")
 
-                    # NOVOS CARDS DE PERFORMANCE
                     st.subheader("Métricas de Performance")
                     c1, c2, c3 = st.columns(3)
                     win_rate = (kpi_data["vitorias"] / kpi_data["total_corridas"] * 100) if kpi_data["total_corridas"] > 0 else 0
@@ -125,7 +123,6 @@ if pagina_selecionada == "Análises":
                          c3.metric("Melhor Média de Largada", best_grid_df.iloc[0]['nome'], f"#{best_grid_df.iloc[0]['media_grid']:.2f}")
 
                 st.divider()
-
                 st.subheader("Comparativo Anual (Vitórias, Poles, Pódios)")
                 stats_anual_query = "SELECT c.ano, SUM(CASE WHEN r.posicao_final = 1 THEN 1 ELSE 0 END) AS vitorias, SUM(CASE WHEN r.posicao_grid = 1 THEN 1 ELSE 0 END) AS poles, SUM(CASE WHEN r.posicao_final <= 3 THEN 1 ELSE 0 END) AS podios FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE r.id_piloto_fk = %(id)s GROUP BY c.ano ORDER BY c.ano;"
                 stats_anual_df = consultar_dados_df(stats_anual_query, params={'id': id_piloto})
@@ -150,6 +147,7 @@ if pagina_selecionada == "Análises":
                     if not pontos_df.empty:
                         fig_pontos_piloto = px.bar(pontos_df, x='ano', y='pontos', text_auto=True, color_discrete_sequence=[F1_RED], labels={'ano': 'Temporada', 'pontos': 'Pontos'})
                         st.plotly_chart(fig_pontos_piloto, use_container_width=True)
+
 
     with tab_equipe:
         st.header("Análise de Performance de Equipe")
@@ -194,7 +192,7 @@ if pagina_selecionada == "Análises":
                     kpi_equipe_data = kpi_equipe_df.iloc[0]
                     c1, c2, c3, c4, c5, c6 = st.columns(6)
                     c1.metric("🏆 Títulos", int(kpi_equipe_data["titulos"]))
-                    c2.metric("🏎️ Corridas", int(kpi_equipe_data["total_corridas"]))
+                    c2.metric("Corridas", int(kpi_equipe_data["total_corridas"]))
                     c3.metric("🥇 Vitórias", int(kpi_equipe_data["vitorias"]))
                     c4.metric("🥈 Pódios", int(kpi_equipe_data["podios"]))
                     c5.metric("⏱️ Poles", int(kpi_equipe_data["poles"]))
@@ -215,6 +213,7 @@ if pagina_selecionada == "Análises":
 
 
                 st.divider()
+
                 st.subheader("Dobradinhas por Temporada")
                 dobradinhas_ano_query = "SELECT c.ano, COUNT(*) as total FROM (SELECT r.id_corrida_fk FROM tbl_resultados r WHERE r.id_construtor_fk = %(id)s AND r.posicao_final IN (1, 2) GROUP BY r.id_corrida_fk HAVING COUNT(DISTINCT r.id_piloto_fk) = 2) as dobradinhas JOIN tbl_corridas c ON dobradinhas.id_corrida_fk = c.id_corrida GROUP BY c.ano ORDER BY c.ano;"
                 dobradinhas_ano_df = consultar_dados_df(dobradinhas_ano_query, params={'id': id_equipe})
@@ -314,7 +313,7 @@ if pagina_selecionada == "Análises":
                 id_circuito = int(circuito_info["id_circuito"])
                 
                 st.subheader(f"Resumo Histórico do Circuito: {circuito_info['nome']}")
-                kpi_circ_query = "WITH poles AS (SELECT COUNT(*) as total_poles FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_grid = 1), wins_from_pole AS (SELECT COUNT(*) as wins_fp FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_grid = 1 AND r.posicao_final = 1) SELECT (SELECT COUNT(DISTINCT ano) FROM tbl_corridas WHERE id_circuito_fk=%(id)s) as total_corridas, (SELECT p.nome || ' ' || p.sobrenome FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_final=1 GROUP BY p.nome, p.sobrenome ORDER BY COUNT(*) DESC LIMIT 1) as maior_vencedor, (SELECT p.nome || ' ' || p.sobrenome FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.id_rank_volta_rapida=1 GROUP BY p.nome, p.sobrenome ORDER BY COUNT(*) DESC LIMIT 1) as mais_voltas_rapidas, (SELECT CAST(wins_fp AS FLOAT) / total_poles * 100 FROM poles, wins_from_pole) as pole_win_rate FROM tbl_corridas WHERE id_circuito_fk=%(id)s LIMIT 1;"
+                kpi_circ_query = "WITH poles AS (SELECT COUNT(*) as total_poles FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_grid = 1), wins_from_pole AS (SELECT COUNT(*) as wins_fp FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_grid = 1 AND r.posicao_final = 1) SELECT (SELECT COUNT(DISTINCT ano) FROM tbl_corridas WHERE id_circuito_fk=%(id)s) as total_corridas, (SELECT p.nome || ' ' || p.sobrenome FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_final=1 GROUP BY p.nome, p.sobrenome ORDER BY COUNT(*) DESC LIMIT 1) as maior_vencedor, (SELECT p.nome || ' ' || p.sobrenome FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.rank_volta_rapida=1 GROUP BY p.nome, p.sobrenome ORDER BY COUNT(*) DESC LIMIT 1) as mais_voltas_rapidas, (SELECT CAST(wins_fp AS FLOAT) / total_poles * 100 FROM poles, wins_from_pole) as pole_win_rate FROM tbl_corridas WHERE id_circuito_fk=%(id)s LIMIT 1;"
                 kpi_circ_df = consultar_dados_df(kpi_circ_query, params={'id': id_circuito}).iloc[0]
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("Total de Corridas", int(kpi_circ_df["total_corridas"]))
@@ -377,6 +376,7 @@ if pagina_selecionada == "Análises":
         """
         records_df = consultar_dados_df(query_records)
         if not records_df.empty:
+            records_df = records_df.set_index('tipo')
             st.markdown("##### Pilotos")
             c1, c2, c3, c4, c5 = st.columns(5)
             c1.metric("🏆 Mais Títulos", records_df.loc['Títulos (Piloto)']['recordista'], f"{int(records_df.loc['Títulos (Piloto)']['recorde'])}")
@@ -456,4 +456,3 @@ elif pagina_selecionada == "Gerenciamento":
                     if executar_comando_sql(sql, (int(id_piloto_del),)):
                         st.success(f"Piloto '{piloto_del}' deletado!")
                         st.rerun()
-
