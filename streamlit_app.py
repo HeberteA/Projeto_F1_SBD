@@ -93,7 +93,7 @@ if pagina_selecionada == "Análises":
                         SUM(CASE WHEN posicao_final <= 3 THEN 1 ELSE 0 END) AS podios,
                         SUM(pontos) AS total_pontos,
                         AVG(pontos) AS media_pontos,
-                        SUM(CASE WHEN rank_volta_rapida = 1 THEN 1 ELSE 0 END) AS voltas_rapidas,
+                        SUM(CASE WHEN rank = 1 THEN 1 ELSE 0 END) AS voltas_rapidas,
                         COALESCE((SELECT titulos FROM pilot_champs), 0) as titulos
                     FROM tbl_resultados WHERE id_piloto_fk = %(id_piloto)s;
                 """
@@ -103,7 +103,7 @@ if pagina_selecionada == "Análises":
                     kpi_data = kpi_df.iloc[0]
                     c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
                     c1.metric("🏆 Títulos", int(kpi_data["titulos"]))
-                    c2.metric("Corridas", int(kpi_data["total_corridas"]))
+                    c2.metric("🏎️ Corridas", int(kpi_data["total_corridas"]))
                     c3.metric("🥇 Vitórias", int(kpi_data["vitorias"]))
                     c4.metric("🥈 Pódios", int(kpi_data["podios"]))
                     c5.metric("⏱️ Poles", int(kpi_data["poles"]))
@@ -181,7 +181,7 @@ if pagina_selecionada == "Análises":
                         SUM(CASE WHEN posicao_final = 1 THEN 1 ELSE 0 END) as vitorias,
                         SUM(CASE WHEN posicao_grid = 1 THEN 1 ELSE 0 END) AS poles,
                         SUM(CASE WHEN posicao_final <= 3 THEN 1 ELSE 0 END) as podios,
-                        SUM(CASE WHEN rank_volta_rapida = 1 THEN 1 ELSE 0 END) AS voltas_rapidas,
+                        SUM(CASE WHEN rank = 1 THEN 1 ELSE 0 END) AS voltas_rapidas,
                         SUM(pontos) as total_pontos,
                         COALESCE((SELECT titulos FROM constructor_champs), 0) as titulos
                     FROM tbl_resultados WHERE id_construtor_fk = %(id_equipe)s;
@@ -192,7 +192,7 @@ if pagina_selecionada == "Análises":
                     kpi_equipe_data = kpi_equipe_df.iloc[0]
                     c1, c2, c3, c4, c5, c6 = st.columns(6)
                     c1.metric("🏆 Títulos", int(kpi_equipe_data["titulos"]))
-                    c2.metric("Corridas", int(kpi_equipe_data["total_corridas"]))
+                    c2.metric("🏎️ Corridas", int(kpi_equipe_data["total_corridas"]))
                     c3.metric("🥇 Vitórias", int(kpi_equipe_data["vitorias"]))
                     c4.metric("🥈 Pódios", int(kpi_equipe_data["podios"]))
                     c5.metric("⏱️ Poles", int(kpi_equipe_data["poles"]))
@@ -313,7 +313,7 @@ if pagina_selecionada == "Análises":
                 id_circuito = int(circuito_info["id_circuito"])
                 
                 st.subheader(f"Resumo Histórico do Circuito: {circuito_info['nome']}")
-                kpi_circ_query = "WITH poles AS (SELECT COUNT(*) as total_poles FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_grid = 1), wins_from_pole AS (SELECT COUNT(*) as wins_fp FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_grid = 1 AND r.posicao_final = 1) SELECT (SELECT COUNT(DISTINCT ano) FROM tbl_corridas WHERE id_circuito_fk=%(id)s) as total_corridas, (SELECT p.nome || ' ' || p.sobrenome FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_final=1 GROUP BY p.nome, p.sobrenome ORDER BY COUNT(*) DESC LIMIT 1) as maior_vencedor, (SELECT p.nome || ' ' || p.sobrenome FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.rank_volta_rapida=1 GROUP BY p.nome, p.sobrenome ORDER BY COUNT(*) DESC LIMIT 1) as mais_voltas_rapidas, (SELECT CAST(wins_fp AS FLOAT) / total_poles * 100 FROM poles, wins_from_pole) as pole_win_rate FROM tbl_corridas WHERE id_circuito_fk=%(id)s LIMIT 1;"
+                kpi_circ_query = "WITH poles AS (SELECT COUNT(*) as total_poles FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_grid = 1), wins_from_pole AS (SELECT COUNT(*) as wins_fp FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_grid = 1 AND r.posicao_final = 1) SELECT (SELECT COUNT(DISTINCT ano) FROM tbl_corridas WHERE id_circuito_fk=%(id)s) as total_corridas, (SELECT p.nome || ' ' || p.sobrenome FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.posicao_final=1 GROUP BY p.nome, p.sobrenome ORDER BY COUNT(*) DESC LIMIT 1) as maior_vencedor, (SELECT p.nome || ' ' || p.sobrenome FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk=p.id_piloto JOIN tbl_corridas c ON r.id_corrida_fk=c.id_corrida WHERE c.id_circuito_fk=%(id)s AND r.rank=1 GROUP BY p.nome, p.sobrenome ORDER BY COUNT(*) DESC LIMIT 1) as mais_voltas_rapidas, (SELECT CAST(wins_fp AS FLOAT) / total_poles * 100 FROM poles, wins_from_pole) as pole_win_rate FROM tbl_corridas WHERE id_circuito_fk=%(id)s LIMIT 1;"
                 kpi_circ_df = consultar_dados_df(kpi_circ_query, params={'id': id_circuito}).iloc[0]
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("Total de Corridas", int(kpi_circ_df["total_corridas"]))
