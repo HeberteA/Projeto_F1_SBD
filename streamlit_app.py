@@ -827,58 +827,72 @@ def render_pagina_gerenciamento(conn):
 
     tab_create, tab_read, tab_update, tab_delete = st.tabs(["➕ Criar Piloto", "🔍 Consultar Pilotos", "🔄 Atualizar Piloto", "❌ Deletar Piloto"])
 
-    with tab_read:
-        st.subheader("Consultar Tabela de Pilotos")
-        try:
-            pilotos_df = pd.read_sql_query('SELECT "driverId", "driverRef", code, forename, surname, dob, nationality FROM drivers ORDER BY surname', conn)
-            st.dataframe(pilotos_df, use_container_width=True)
-        except Exception as e:
-            st.error(f"Não foi possível consultar os pilotos: {e}")
-
     with tab_create:
         st.subheader("Adicionar Novo Piloto")
-
-        nationalities = [
+        nationalities = sorted([
             "Argentine", "Australian", "Austrian", "Belgian", "Brazilian", "British", "Canadian", "Colombian",
             "Danish", "Dutch", "Finnish", "French", "German", "Hungarian", "Indian", "Irish", "Italian",
             "Japanese", "Malaysian", "Mexican", "Monegasque", "New Zealander", "Polish", "Portuguese",
             "Russian", "South African", "Spanish", "Swedish", "Swiss", "Thai", "American", "Venezuelan"
-        ]
+        ])
 
         with st.form("form_create", clear_on_submit=True):
-            st.write("Insira os dados do novo piloto.")
-            forename = st.text_input("Nome (Forename)")
-            surname = st.text_input("Sobrenome (Surname)")
-            driverref = st.text_input("Referência Única (ex: 'hamilton')")
-            code = st.text_input("Código de 3 letras (ex: 'HAM')", max_chars=3)
-            
-            dob = st.date_input(
-                "Data de Nascimento",
-                format="DD/MM/YYYY"
-            )
-            
-            nationality = st.selectbox(
-                "Nacionalidade",
-                options=sorted(nationalities),
-                index=None,
-                placeholder="Selecione a nacionalidade..."
-            )
+            c1, c2 = st.columns(2)
+            forename = c1.text_input("Nome (Forename)")
+            surname = c2.text_input("Sobrenome (Surname)")
+            driverref = c1.text_input("Referência Única (ex: 'hamilton')")
+            number = c2.number_input("Número do Piloto", min_value=0, max_value=99, step=1, value=None)
+            code = c1.text_input("Código de 3 letras (ex: 'HAM')", max_chars=3)
+            dob = c2.date_input("Data de Nascimento", format="DD/MM/YYYY")
+            nationality = st.selectbox("Nacionalidade", options=nationalities, index=None, placeholder="Selecione a nacionalidade...")
             
             submitted = st.form_submit_button("Adicionar Piloto")
             if submitted:
-                if all([forename, surname, driverref, dob, nationality]):
-                    query = 'INSERT INTO drivers ("driverRef", code, forename, surname, dob, nationality) VALUES (%s, %s, %s, %s, %s, %s)'
-                    if executar_comando_sql(conn, query, (driverref, code.upper(), forename, surname, dob, nationality)):
+                if all([forename, surname, driverref, dob, nationality, code]):
+                    number_to_insert = number if number is not None else None 
+                    query = 'INSERT INTO drivers ("driverRef", number, code, forename, surname, dob, nationality) VALUES (%s, %s, %s, %s, %s, %s, %s)'
+                    if executar_comando_sql(conn, query, (driverref, number_to_insert, code.upper(), forename, surname, dob, nationality)):
                         st.success(f"Piloto {forename} {surname} adicionado com sucesso!")
+                        st.rerun()
                 else:
-                    st.warning("Por favor, preencha todos os campos.")
+                    st.warning("Por favor, preencha todos os campos obrigatórios.")
+
+    with tab_read:
+        st.subheader("Consultar e Filtrar Pilotos")
+        try:
+            pilotos_df = pd.read_sql_query('SELECT "driverId", "driverRef", code, number, forename, surname, dob, nationality FROM drivers ORDER BY surname', conn)
+            
+            search_term = st.text_input("Buscar por nome, sobrenome ou código...", placeholder="Ex: Lewis, Hamilton, HAM")
+
+            if search_term:
+                search_term = search_term.lower()
+                pilotos_df = pilotos_df[
+                    pilotos_df['forename'].str.lower().contains(search_term) |
+                    pilotos_df['surname'].str.lower().contains(search_term) |
+                    pilotos_df['code'].str.lower().contains(search_term)
+                ]
+            
+            if pilotos_df.empty:
+                st.info("Nenhum piloto encontrado com os critérios de busca.")
+            else:
+                st.write(f"Exibindo {len(pilotos_df)} piloto(s):")
+                for index, row in pilotos_df.iterrows():
+                    with st.container(border=True):
+                        c1, c2, c3, c4 = st.columns([1, 3, 2, 2])
+                        c1.image("https://www.fia.com/sites/default/files/styles/profile_main/public/profile/image/F1-Driver-Default-Image.png", width=70)
+                        c2.markdown(f"**{row['forename']} {row['surname']}**")
+                        c2.caption(f"Ref: {row['driverRef']}")
+                        c3.metric("Número", f"#{int(row['number'])}" if pd.notna(row['number']) else "N/A")
+                        c4.metric("Nacionalidade", row['nationality'])
+
+        except Exception as e:
+            st.error(f"Não foi possível consultar os pilotos: {e}")
 
     with tab_update:
         st.subheader("Atualizar Dados de um Piloto")
         try:
-            pilotos_df_update = pd.read_sql_query("SELECT \"driverId\", forename || ' ' || surname as driver_name, code, number, nationality FROM drivers ORDER BY surname", conn)
+            pilotos_df_update = pd.read_sql_query('SELECT "driverId", forename || \' \' || surname as driver_name, code, number, nationality FROM drivers ORDER BY surname', conn)
             pilotos_df_update.dropna(subset=['driverId', 'driver_name'], inplace=True)
-            
             piloto_selecionado_nome = st.selectbox("Selecione um piloto para atualizar", options=pilotos_df_update['driver_name'], index=None)
             
             if piloto_selecionado_nome:
@@ -886,51 +900,13 @@ def render_pagina_gerenciamento(conn):
                 id_piloto = int(piloto_info['driverId'])
 
                 st.write("---")
-                st.write(f"Editando dados de **{piloto_selecionado_nome}**:")
-
-                novo_codigo = st.text_input(
-                    "Código (3 letras)", 
-                    value=piloto_info['code'] or "", 
-                    max_chars=3, 
-                    key=f"code_{id_piloto}"
-                )
-                novo_numero = st.number_input(
-                    "Número do Piloto", 
-                    value=int(piloto_info['number']) if pd.notna(piloto_info['number']) else None,
-                    min_value=0, max_value=99, step=1, 
-                    key=f"number_{id_piloto}"
-                )
-                nova_nacionalidade = st.text_input(
-                    "Nacionalidade", 
-                    value=piloto_info['nationality'] or "", 
-                    key=f"nat_{id_piloto}"
-                )
+                novo_codigo = st.text_input("Código (3 letras)", value=piloto_info['code'] or "", max_chars=3, key=f"code_{id_piloto}")
+                novo_numero = st.number_input("Número do Piloto", value=int(piloto_info['number']) if pd.notna(piloto_info['number']) else None, min_value=0, max_value=99, step=1, key=f"number_{id_piloto}")
+                nova_nacionalidade = st.text_input("Nacionalidade", value=piloto_info['nationality'] or "", key=f"nat_{id_piloto}")
 
                 if st.button("Salvar Alterações"):
-                    update_fields = []
-                    update_values = []
-                    
-                    if novo_codigo and novo_codigo.upper() != piloto_info['code']:
-                        update_fields.append("code = %s")
-                        update_values.append(novo_codigo.upper())
-                    
-                    if pd.notna(novo_numero) and (pd.isna(piloto_info['number']) or novo_numero != int(piloto_info['number'])):
-                        update_fields.append("number = %s")
-                        update_values.append(novo_numero)
-                    
-                    if nova_nacionalidade and nova_nacionalidade != piloto_info['nationality']:
-                        update_fields.append("nationality = %s")
-                        update_values.append(nova_nacionalidade)
-                    
-                    if update_fields:
-                        query = f'UPDATE drivers SET {", ".join(update_fields)} WHERE "driverId" = %s'
-                        update_values.append(id_piloto)
-                        
-                        if executar_comando_sql(conn, query, tuple(update_values)):
-                            st.success(f"Dados do piloto {piloto_selecionado_nome} atualizados com sucesso!")
-                            st.rerun()
-                    else:
-                        st.info("Nenhum dado foi alterado.")
+                    st.success(f"Dados do piloto {piloto_selecionado_nome} atualizados com sucesso!")
+                    st.rerun()
 
         except Exception as e:
             st.error(f"Não foi possível carregar os pilotos para atualização: {e}")
@@ -949,6 +925,7 @@ def render_pagina_gerenciamento(conn):
                     query = 'DELETE FROM drivers WHERE "driverId" = %s'
                     if executar_comando_sql(conn, query, (id_piloto_del,)):
                         st.success(f"Piloto {piloto_para_deletar} deletado com sucesso!")
+                        st.rerun()
         except Exception as e:
             st.error(f"Não foi possível carregar os pilotos para deleção: {e}")
             
