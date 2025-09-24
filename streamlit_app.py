@@ -10,9 +10,9 @@ from datetime import date
 st.set_page_config(layout="wide", page_title="F1 Super Analytics Pro", page_icon="f1.png")
 F1_PALETTE = ["#E10600", "#7F7F7F", "#15151E", "#B1B1B8", "#FFFFFF"]
 F1_RED = F1_PALETTE[0]
-F1_BLACK = F1_PALETTE[3]
-F1_GREY = F1_PALETTE[2]
-F1_WHITE = F1_PALETTE[5]
+F1_BLACK = F1_PALETTE[2]
+F1_GREY = F1_PALETTE[1]
+F1_WHITE = F1_PALETTE[4]
 
 @st.cache_resource
 def conectar_db():
