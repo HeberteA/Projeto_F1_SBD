@@ -8,10 +8,11 @@ from datetime import date
 
 
 st.set_page_config(layout="wide", page_title="F1 Super Analytics Pro", page_icon="f1.png")
-F1_PALETTE = ["#E10600", "#FF8700", "#00A000", "#7F7F7F", "#15151E", "#B1B1B8", "#FFFFFF"]
+F1_PALETTE = ["#E10600", "#7F7F7F", "#15151E", "#B1B1B8", "#FFFFFF"]
 F1_RED = F1_PALETTE[0]
-F1_BLACK = F1_PALETTE[4]
-F1_GREY = F1_PALETTE[3]
+F1_BLACK = F1_PALETTE[3]
+F1_GREY = F1_PALETTE[2]
+F1_WHITE = F1_PALETTE[5]
 
 @st.cache_resource
 def conectar_db():
@@ -205,7 +206,6 @@ def render_analise_pilotos(data):
     st.title("🧑‍🚀 Análise de Pilotos")
     st.markdown("---")
 
-    # --- FILTRO DE PILOTO ---
     piloto_nome = st.selectbox(
         "Selecione um Piloto",
         options=data['drivers'].sort_values('surname')['driver_name'],
@@ -217,7 +217,6 @@ def render_analise_pilotos(data):
         st.info("Selecione um piloto para ver o dossiê completo de sua carreira.")
         return
 
-    # --- FILTRAGEM DE DADOS PARA O PILOTO SELECIONADO ---
     piloto_info = data['drivers'][data['drivers']['driver_name'] == piloto_nome].iloc[0]
     id_piloto = piloto_info['driverId']
     
@@ -228,15 +227,12 @@ def render_analise_pilotos(data):
         st.warning(f"Não há dados de resultados detalhados para {piloto_nome}.")
         return
 
-    # --- CÁLCULOS PARA OS CARDS ---
-    # Informações básicas
     today = date.today()
     dob = pd.to_datetime(piloto_info['dob']).date()
     idade = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
     primeiro_ano = res_piloto['year'].min()
     ultimo_ano = res_piloto['year'].max()
 
-    # Totais da Carreira
     total_corridas = res_piloto['raceId'].nunique()
     total_vitorias = (res_piloto['position'] == 1).sum()
     total_podios = res_piloto['position'].isin([1, 2, 3]).sum()
@@ -246,14 +242,12 @@ def render_analise_pilotos(data):
     total_voltas_corridas = res_piloto['laps'].sum()
     total_dnfs = res_piloto['position'].isna().sum()
     
-    # Médias e Percentuais
     perc_vitorias = (total_vitorias / total_corridas * 100) if total_corridas > 0 else 0
     perc_podios = (total_podios / total_corridas * 100) if total_corridas > 0 else 0
     media_grid = quali_piloto['position'].mean()
     media_final = res_piloto['position'].dropna().mean()
     confiabilidade = ((total_corridas - total_dnfs) / total_corridas * 100) if total_corridas > 0 else 0
 
-    # --- EXIBIÇÃO DOS CARDS ---
     st.header(f"Dossiê de Carreira: {piloto_nome}")
 
     st.subheader("Informações Gerais")
@@ -349,7 +343,7 @@ def render_analise_pilotos(data):
     grid_final_piloto = grid_final_piloto[(grid_final_piloto['grid'] > 0) & (grid_final_piloto['position'] > 0)]
     fig_grid_final = px.scatter(grid_final_piloto, x='grid', y='position',
                                 labels={'grid': 'Grid de Largada', 'position': 'Posição Final'},
-                                trendline='ols', trendline_color_override=F1_RED,
+                                trendline='ols', trendline_color_override=F1_WHITE,
                                 color_discrete_sequence=[F1_RED],
                                 title=f"Correlação entre largar e chegar ({len(grid_final_piloto)} corridas)")
     st.plotly_chart(fig_grid_final, use_container_width=True)
@@ -366,7 +360,6 @@ def render_analise_construtores(data):
         
         st.header(construtor_nome)
 
-        # --- Lógica para Campeonatos ---
         standings_construtor = data['constructor_standings'][data['constructor_standings']['constructorId'] == id_construtor]
         campeonatos = 0
         if not standings_construtor.empty:
@@ -379,7 +372,6 @@ def render_analise_construtores(data):
                 if not pos_final.empty and pos_final['constructorId'].iloc[0] == id_construtor:
                     campeonatos += 1
         
-        ### NOVOS CARDS ###
         total_entradas = len(results_construtor)
         total_dnfs = results_construtor['position'].isna().sum()
         confiabilidade = ((total_entradas - total_dnfs) / total_entradas * 100) if total_entradas > 0 else 0
@@ -391,7 +383,6 @@ def render_analise_construtores(data):
         c4.metric("🔧 Confiabilidade", f"{confiabilidade:.2f}%")
         st.divider()
 
-        ### NOVOS GRÁFICOS ###
         g1, g2 = st.columns(2)
         with g1:
             st.subheader("Pontos por Temporada")
