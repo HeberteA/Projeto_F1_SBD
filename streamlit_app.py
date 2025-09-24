@@ -72,7 +72,10 @@ def carregar_todos_os_dados(_conn):
         for df_name in data:
             data[df_name].replace('\\N', pd.NA, inplace=True)
         
+        data['races']['date'] = pd.to_datetime(data['races']['date'])
+        
         data['drivers']['driver_name'] = data['drivers']['forename'] + ' ' + data['drivers']['surname']
+        
         
         numeric_cols = {
             'races': ['year', 'round'],
@@ -596,47 +599,36 @@ def render_h2h(data):
     
 def render_hall_da_fama(data):
     st.title("🏆 Hall da Fama: As Lendas do Esporte")
-    
-    st.warning(
-        """
-        **Aviso Importante:** Esta análise é baseada em um conjunto de dados histórico que parece terminar por volta da temporada de 2022. 
-        Os recordes e estatísticas aqui exibidos refletem os dados até essa data e podem não incluir os resultados das temporadas mais recentes.
-        """,
-        icon="⚠️"
-    )
-    
+  
     st.markdown("---")
-
     results_full = data['results_full']
     drivers = data['drivers']
     constructors = data['constructors']
     qualifying = data['qualifying']
     
     races_com_standings = data['races'].merge(data['driver_standings'], on='raceId')
-    finais_de_ano = races_com_standings.loc[races_com_standings.groupby('year')['round'].idxmax()]
-    
+    finais_de_ano = races_com_standings.loc[races_com_standings.groupby('year')['date'].idxmax()] 
     campeoes_df = finais_de_ano[finais_de_ano['position'] == 1].merge(drivers, on='driverId')
     campeoes_pilotos = campeoes_df['driver_name'].value_counts()
     
     races_com_standings_c = data['races'].merge(data['constructor_standings'], on='raceId')
-    finais_de_ano_c = races_com_standings_c.loc[races_com_standings_c.groupby('year')['round'].idxmax()]
-    campeoes_construtores = finais_de_ano_c[finais_de_ano_c['position'] == 1]['name'].value_counts()
+    finais_de_ano_c = races_com_standings_c.loc[races_com_standings_c.groupby('year')['date'].idxmax()]
+    campeoes_construtores_df = finais_de_ano_c[finais_de_ano_c['position'] == 1].merge(constructors, on='constructorId')
+    campeoes_construtores = campeoes_construtores_df['name_y'].value_counts()
 
     vitorias_temporada_piloto = results_full[results_full['position'] == 1].groupby(['year', 'driver_name']).size().nlargest(1)
     vitorias_temporada_construtor = results_full[results_full['position'] == 1].groupby(['year', 'name_y']).size().nlargest(1)
-
     corridas_por_piloto = results_full.groupby('driverId')['raceId'].nunique()
     corridas_validas = corridas_por_piloto[corridas_por_piloto >= 50].index
     vitorias_por_piloto_raw = results_full[results_full['driverId'].isin(corridas_validas)]
     vitorias_por_piloto_raw = vitorias_por_piloto_raw[vitorias_por_piloto_raw['position'] == 1]['driverId'].value_counts()
     perc_vitorias = (vitorias_por_piloto_raw / corridas_por_piloto).dropna().nlargest(1)
-    
     vitorias_pilotos = results_full[results_full['position'] == 1]['driver_name'].value_counts()
     podios_pilotos = results_full[results_full['position'].isin([1,2,3])]['driver_name'].value_counts()
     poles_pilotos = qualifying[qualifying['position'] == 1].merge(drivers, on='driverId')['driver_name'].value_counts()
-    
     vitorias_construtores = results_full[results_full['position'] == 1]['name_y'].value_counts()
     podios_construtores = results_full[results_full['position'].isin([1,2,3])]['name_y'].value_counts()
+
 
     st.header("Os Recordistas Absolutos (Baseado nos Dados Históricos)")
     st.subheader("Pilotos Lendários")
