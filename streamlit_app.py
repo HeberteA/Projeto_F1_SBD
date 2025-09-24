@@ -817,7 +817,6 @@ def render_analise_circuitos(data):
 
 def render_pagina_gerenciamento(conn):
     st.title("🔩 Gerenciamento de Dados (CRUD)")
-    st.info("Esta página cumpre o requisito de operações básicas de CRUD (Criar, Consultar, Atualizar, Excluir) em uma tabela.")
 
     try:
         pilotos_df_completo = pd.read_sql_query('SELECT id_piloto, ref_piloto, codigo, numero, nome, sobrenome, data_nascimento, nacionalidade FROM tbl_pilotos ORDER BY sobrenome', conn)
