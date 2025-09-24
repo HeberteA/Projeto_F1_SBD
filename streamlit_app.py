@@ -413,7 +413,7 @@ def main():
             'Análise de Construtores': render_analise_construtores,
             'Análise de Circuitos': render_analise_circuitos,
             'H2H': render_h2h,
-            'Hall da Fama': render_hall_da_fama
+            'Hall da Fama': render_hall_da_fama,
             'Gerenciamento (CRUD)': render_pagina_gerenciamento
         }
         page_function = page_map.get(app_page)
