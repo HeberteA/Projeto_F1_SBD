@@ -837,14 +837,32 @@ def render_pagina_gerenciamento(conn):
 
     with tab_create:
         st.subheader("Adicionar Novo Piloto")
+
+        nationalities = [
+            "Argentine", "Australian", "Austrian", "Belgian", "Brazilian", "British", "Canadian", "Colombian",
+            "Danish", "Dutch", "Finnish", "French", "German", "Hungarian", "Indian", "Irish", "Italian",
+            "Japanese", "Malaysian", "Mexican", "Monegasque", "New Zealander", "Polish", "Portuguese",
+            "Russian", "South African", "Spanish", "Swedish", "Swiss", "Thai", "American", "Venezuelan"
+        ]
+
         with st.form("form_create", clear_on_submit=True):
             st.write("Insira os dados do novo piloto.")
             forename = st.text_input("Nome (Forename)")
             surname = st.text_input("Sobrenome (Surname)")
             driverref = st.text_input("Referência Única (ex: 'hamilton')")
             code = st.text_input("Código de 3 letras (ex: 'HAM')", max_chars=3)
-            dob = st.date_input("Data de Nascimento")
-            nationality = st.text_input("Nacionalidade")
+            
+            dob = st.date_input(
+                "Data de Nascimento",
+                format="DD/MM/YYYY"
+            )
+            
+            nationality = st.selectbox(
+                "Nacionalidade",
+                options=sorted(nationalities),
+                index=None,
+                placeholder="Selecione a nacionalidade..."
+            )
             
             submitted = st.form_submit_button("Adicionar Piloto")
             if submitted:
@@ -859,6 +877,7 @@ def render_pagina_gerenciamento(conn):
         st.subheader("Atualizar Nacionalidade de um Piloto")
         try:
             pilotos_df_update = pd.read_sql_query("SELECT \"driverId\", forename || ' ' || surname as driver_name FROM drivers ORDER BY surname", conn)
+            pilotos_df_update.dropna(subset=['driverId', 'driver_name'], inplace=True)
             piloto_selecionado = st.selectbox("Selecione um piloto para atualizar", options=pilotos_df_update['driver_name'], index=None)
             
             if piloto_selecionado:
@@ -874,12 +893,12 @@ def render_pagina_gerenciamento(conn):
         except Exception as e:
             st.error(f"Não foi possível carregar os pilotos para atualização: {e}")
 
-
     with tab_delete:
         st.subheader("Deletar um Piloto")
         st.warning("CUIDADO: Esta ação é irreversível.", icon="⚠️")
         try:
             pilotos_df_delete = pd.read_sql_query("SELECT \"driverId\", forename || ' ' || surname as driver_name FROM drivers ORDER BY surname", conn)
+            pilotos_df_delete.dropna(subset=['driverId', 'driver_name'], inplace=True)
             piloto_para_deletar = st.selectbox("Selecione um piloto para deletar", options=pilotos_df_delete['driver_name'], index=None, key="delete_select")
             
             if piloto_para_deletar:
@@ -890,6 +909,7 @@ def render_pagina_gerenciamento(conn):
                         st.success(f"Piloto {piloto_para_deletar} deletado com sucesso!")
         except Exception as e:
             st.error(f"Não foi possível carregar os pilotos para deleção: {e}")
+            
 def main():
     with st.sidebar:
         st.image("f1_logo.png", width=300)
