@@ -582,7 +582,7 @@ def render_h2h(data):
     
 def render_hall_da_fama(data):
     st.title("🏆 Hall da Fama: As Lendas do Esporte")
-    st.markdown("---")
+   st.markdown("---")
 
     results_full = data['results_full']
     drivers = data['drivers']
@@ -591,9 +591,7 @@ def render_hall_da_fama(data):
     
     races_com_standings = data['races'].merge(data['driver_standings'], on='raceId')
     finais_de_ano = races_com_standings.loc[races_com_standings.groupby('year')['round'].idxmax()]
-    
-    campeoes_df = finais_de_ano[finais_de_ano['position'] == 1].merge(drivers, on='driverId')
-    campeoes_pilotos = campeoes_df['driver_name'].value_counts()
+    campeoes_pilotos = finais_de_ano[finais_de_ano['position'] == 1].merge(drivers, on='driverId')['driver_name'].value_counts()
     
     races_com_standings_c = data['races'].merge(data['constructor_standings'], on='raceId')
     finais_de_ano_c = races_com_standings_c.loc[races_com_standings_c.groupby('year')['round'].idxmax()]
@@ -611,12 +609,11 @@ def render_hall_da_fama(data):
     vitorias_pilotos = results_full[results_full['position'] == 1]['driver_name'].value_counts()
     podios_pilotos = results_full[results_full['position'].isin([1,2,3])]['driver_name'].value_counts()
     poles_pilotos = qualifying[qualifying['position'] == 1].merge(drivers, on='driverId')['driver_name'].value_counts()
-    voltas_rapidas_pilotos = results_full[results_full['rank'] == 1]['driver_name'].value_counts()
     
     vitorias_construtores = results_full[results_full['position'] == 1]['name_y'].value_counts()
     podios_construtores = results_full[results_full['position'].isin([1,2,3])]['name_y'].value_counts()
 
-    st.header("Os Recordistas Absolutos")
+    st.header("Os Recordistas Absolutos (Baseado nos Dados Históricos)")
     st.subheader("Pilotos Lendários")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("👑 Mais Títulos", f"{campeoes_pilotos.index[0]}", f"{campeoes_pilotos.values[0]} Títulos")
@@ -689,7 +686,7 @@ def render_hall_da_fama(data):
     with g7:
         st.markdown("**Títulos Mundiais de Pilotos por País**")
         nacoes_campeas = campeoes_df['nationality'].value_counts()
-        fig_nac_camp = px.pie(nacoes_campeas, values=nacoes_campeas.values, names=nacoes_campeas.index, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+        fig_nac_camp = px.pie(nacoes_campeas, values=nacoes_campeas.values, names=nacoes_campeas.index, hole=0.4, color_discrete_sequence=F1_PALETTE)
         st.plotly_chart(fig_nac_camp, use_container_width=True)
     with g8:
         st.markdown("**Vitórias de Pilotos por País (Top 10)**")
