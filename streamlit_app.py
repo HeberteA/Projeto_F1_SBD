@@ -646,6 +646,14 @@ def render_hall_da_fama(data):
     if not vitorias_temporada_construtor.empty:
         c8.metric("🗓️ Mais Vitórias (Equipe/Ano)", f"{vitorias_temporada_construtor.index[0][1]} ({vitorias_temporada_construtor.index[0][0]})", f"{vitorias_temporada_construtor.values[0]} Vitórias")
 
+    st.markdown("---")
+    st.header("🔍 Análise de Dados: Como os Títulos Foram Calculados")
+    with st.expander("Clique aqui para ver a lista de campeões anuais calculada a partir dos dados"):
+        st.write("A tabela abaixo mostra o campeão mundial de pilotos que o programa calculou para cada ano, baseado na última corrida de cada temporada.")
+        display_campeoes = campeoes_df[['year', 'driver_name', 'points', 'wins']].rename(columns={
+            'year': 'Ano', 'driver_name': 'Piloto Campeão (Calculado)',
+            'points': 'Pontos na Temporada', 'wins': 'Vitórias na Temporada'
+        }).sort_values('Ano', ascending=False)
     st.header("Rankings Históricos Detalhados")
     tab_vit, tab_pod, tab_pol, tab_camp, tab_nacoes = st.tabs(["Vitórias", "Pódios", "Pole Positions", "Campeonatos", "Batalha das Nações"])
 
