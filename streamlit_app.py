@@ -41,7 +41,6 @@ def executar_comando_sql(conn, comando, params=None):
 
 @st.cache_data(ttl=60)
 def carregar_todos_os_dados(_conn):
-    st.info("Carregando e preparando dados do banco de dados...")
     queries = {
         'races': 'select * from races', 'results': 'select * from results',
         'drivers': 'select * from drivers', 'constructors': 'select * from constructors',
@@ -77,7 +76,6 @@ def carregar_todos_os_dados(_conn):
                                               .merge(data['constructors'], on='constructorId')\
                                               .merge(data['status'], on='statusId')
         
-        st.success("Dados carregados com sucesso!")
         return data
     except Exception as e:
         st.error(f"Erro ao consultar dados: {e}. Verifique nomes de tabelas/colunas.")
