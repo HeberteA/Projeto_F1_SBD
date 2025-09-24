@@ -52,16 +52,15 @@ def executar_comando_sql(comando, params=None):
 @st.cache_data(ttl=3600)
 def carregar_todos_os_dados():
     queries = {
-        "tbl_corridas": "SELECT id_corrida, ano, rodada, nome_gp, data_corrida, id_circuito_fk FROM tbl_corridas",
-        "tbl_resultados": "SELECT id_resultado, posicao_final, pontos, posicao_grid, voltas, id_corrida_fk, id_piloto_fk, id_construtor_fk, id_status_fk FROM tbl_resultados",
-        "tbl_pilotos": "SELECT id_piloto, ref_piloto, numero, codigo, nome as nome_piloto, sobrenome, data_nascimento, nacionalidade FROM tbl_pilotos",
-        "tbl_construtores": "SELECT id_construtor, ref_construtor, nome as nome_construtor, nacionalidade as nacionalidade_construtor FROM tbl_construtores",
+        "tbl_corridas": 'SELECT id_corrida, ano, rodada, nome_gp, id_circuito_fk FROM tbl_corridas',
+        "tbl_resultados": 'SELECT posicao_final, pontos, posicao_grid, id_corrida_fk, id_piloto_fk, id_construtor_fk, id_status_fk FROM tbl_resultados',
+        "tbl_pilotos": 'SELECT id_piloto, nome as nome_piloto, sobrenome FROM tbl_pilotos',
+        "tbl_construtores": 'SELECT id_construtor, nome as nome_construtor, nacionalidade as nacionalidade_construtor FROM tbl_construtores',
         "driver_standings": 'SELECT "raceId", "driverId", points, position, wins FROM driver_standings',
         "constructor_standings": 'SELECT "raceId", "constructorId", points, position, wins FROM constructor_standings',
-        "pit_stops": 'SELECT "raceId", "driverId", stop, lap, milliseconds FROM pit_stops',
         "qualifying": 'SELECT "raceId", "driverId", "constructorId", position as quali_position FROM qualifying',
-        "tbl_circuitos": "SELECT id_circuito, nome as nome_circuito, cidade, pais FROM tbl_circuitos",
-        "tbl_status_resultado": "SELECT id_status, status FROM tbl_status_resultado"
+        "tbl_circuitos": 'SELECT id_circuito, nome as nome_circuito, cidade, pais FROM tbl_circuitos',
+        "tbl_status_resultado": 'SELECT id_status, status FROM tbl_status_resultado'
     }
     data = {name: consultar_dados_df(query) for name, query in queries.items()}
     if not data["tbl_pilotos"].empty:
@@ -70,17 +69,15 @@ def carregar_todos_os_dados():
 
 def render_pagina_visao_geral(data):
     st.title("🏁 Visão Geral da Temporada de F1")
-    races, results, drivers, constructors, driver_standings, constructor_standings, pit_stops = (
-        data['tbl_corridas'], data['tbl_resultados'], data['tbl_pilotos'], data['tbl_construtores'],
-        data['driver_standings'], data['constructor_standings'], data['pit_stops']
+    races, drivers, constructors, driver_standings, constructor_standings = (
+        data['tbl_corridas'], data['tbl_pilotos'], data['tbl_construtores'],
+        data['driver_standings'], data['constructor_standings']
     )
-    st.sidebar.header("Filtros de Análise")
+    st.sidebar.header("Filtros")
     anos_disponiveis = sorted(races[races['ano'] <= 2024]['ano'].unique(), reverse=True)
     ano_selecionado = st.sidebar.selectbox("Selecione a Temporada", anos_disponiveis, key="visao_geral_ano")
 
     races_ano = races[races['ano'] == ano_selecionado]
-    race_ids_ano = races_ano['id_corrida'].unique()
-
     if races_ano.empty:
         st.warning(f"Não há dados de corrida para a temporada de {ano_selecionado}.")
         return
@@ -96,15 +93,10 @@ def render_pagina_visao_geral(data):
     campeao_constr_info = constructor_standings_final[constructor_standings_final['position'] == 1]
     nome_campeao_constr = constructors[constructors['id_construtor'] == campeao_constr_info['constructorId'].iloc[0]]['nome_construtor'].iloc[0] if not campeao_constr_info.empty else "N/A"
 
-    pit_stops_ano = pit_stops[pit_stops['raceId'].isin(race_ids_ano)]
-    media_pit_stop = pit_stops_ano['milliseconds'].mean() / 1000 if not pit_stops_ano.empty else 0
-    media_pit_stop_str = f"{media_pit_stop:.3f}s" if media_pit_stop > 0 else "N/A"
-
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     col1.metric("🏆 Campeão de Pilotos", nome_campeao_piloto)
     col2.metric("🏎️ Campeão de Construtores", nome_campeao_constr)
-    col3.metric("🏁 Total de Corridas", len(race_ids_ano))
-    col4.metric("⏱️ Média de Pit Stop", media_pit_stop_str)
+    col3.metric("🏁 Total de Corridas", races_ano['id_corrida'].nunique())
     st.divider()
 
     col_graf1, col_graf2 = st.columns(2)
@@ -125,131 +117,143 @@ def render_pagina_visao_geral(data):
 def render_pagina_analise_pilotos(data):
     st.title("🧑‍🚀 Análise Detalhada de Pilotos")
     drivers, results, qualifying = data['tbl_pilotos'], data['tbl_resultados'], data['qualifying']
-    
     piloto_selecionado = st.selectbox("Selecione um Piloto", options=drivers.sort_values('sobrenome')['nome_completo_piloto'], index=None, placeholder="Buscar piloto...")
-
     if piloto_selecionado:
         driver_id = drivers[drivers['nome_completo_piloto'] == piloto_selecionado]['id_piloto'].iloc[0]
         resultados_piloto = results[results['id_piloto_fk'] == driver_id]
         poles_piloto = qualifying[(qualifying['driverId'] == driver_id) & (qualifying['quali_position'] == 1)]
         
-        total_corridas = resultados_piloto['id_corrida_fk'].nunique()
-        total_vitorias = resultados_piloto[resultados_piloto['posicao_final'] == 1].shape[0]
-        total_podios = resultados_piloto[resultados_piloto['posicao_final'].isin([1, 2, 3])].shape[0]
-        total_poles = poles_piloto.shape[0]
-        total_pontos = resultados_piloto['pontos'].sum()
-
         col1, col2, col3, col4, col5 = st.columns(5)
-        col1.metric("🏁 Corridas", total_corridas)
-        col2.metric("🏆 Vitórias", total_vitorias)
-        col3.metric("🍾 Pódios", total_podios)
-        col4.metric("⏱️ Pole Positions", total_poles)
-        col5.metric("💯 Total de Pontos", f"{total_pontos:,.0f}")
+        col1.metric("🏁 Corridas", resultados_piloto['id_corrida_fk'].nunique())
+        col2.metric("🏆 Vitórias", resultados_piloto[resultados_piloto['posicao_final'] == 1].shape[0])
+        col3.metric("🍾 Pódios", resultados_piloto[resultados_piloto['posicao_final'].isin([1, 2, 3])].shape[0])
+        col4.metric("⏱️ Pole Positions", poles_piloto.shape[0])
+        col5.metric("💯 Total de Pontos", f"{resultados_piloto['pontos'].sum():,.0f}")
         st.divider()
 
         col_graf1, col_graf2 = st.columns(2)
         with col_graf1:
-            st.subheader("Desempenho por Posição de Largada vs. Chegada")
+            st.subheader("Desempenho: Largada vs. Chegada")
             grid_vs_final = resultados_piloto[['posicao_grid', 'posicao_final']]
             grid_vs_final = grid_vs_final[(grid_vs_final['posicao_grid'] > 0) & (grid_vs_final['posicao_final'] > 0)]
-            fig = px.scatter(grid_vs_final, x='posicao_grid', y='posicao_final', labels={'posicao_grid': 'Posição de Largada', 'posicao_final': 'Posição Final'},
+            fig = px.scatter(grid_vs_final, x='posicao_grid', y='posicao_final', labels={'posicao_grid': 'Grid', 'posicao_final': 'Final'},
                              trendline='ols', trendline_color_override=F1_RED)
             st.plotly_chart(fig, use_container_width=True)
-
         with col_graf2:
-            st.subheader("Distribuição de Resultados Finais")
+            st.subheader("Distribuição de Resultados")
             contagem_posicao = resultados_piloto['posicao_final'].value_counts().reset_index().sort_values('posicao_final')
-            fig = px.bar(contagem_posicao.head(10), x='posicao_final', y='count', labels={'posicao_final': 'Posição Final', 'count': 'Número de Vezes'},
+            fig = px.bar(contagem_posicao.head(10), x='posicao_final', y='count', labels={'posicao_final': 'Posição', 'count': 'Nº de Vezes'},
                          text='count', color_discrete_sequence=[F1_RED])
             fig.update_layout(xaxis_type='category')
             st.plotly_chart(fig, use_container_width=True)
 
 def render_pagina_analise_construtores(data):
     st.title("🔧 Análise Detalhada de Construtores")
-    constructors, results, status = data['tbl_construtores'], data['tbl_resultados'], data['tbl_status_resultado']
-
+    constructors, results, status, constructor_standings = data['tbl_construtores'], data['tbl_resultados'], data['tbl_status_resultado'], data['constructor_standings']
     construtor_selecionado = st.selectbox("Selecione um Construtor", options=constructors.sort_values('nome_construtor')['nome_construtor'], index=None, placeholder="Buscar construtor...")
-
     if construtor_selecionado:
         constructor_id = constructors[constructors['nome_construtor'] == construtor_selecionado]['id_construtor'].iloc[0]
         resultados_construtor = results[results['id_construtor_fk'] == constructor_id]
         
-        total_corridas = resultados_construtor['id_corrida_fk'].nunique()
-        total_vitorias = resultados_construtor[resultados_construtor['posicao_final'] == 1].shape[0]
-        total_pontos = resultados_construtor['pontos'].sum()
+        campeonatos = constructor_standings[(constructor_standings['constructorId'] == constructor_id) & (constructor_standings['position'] == 1)].shape[0]
 
-        col1, col2, col3 = st.columns(3)
-        col1.metric("🏁 Corridas Disputadas", total_corridas)
-        col2.metric("🏆 Total de Vitórias", total_vitorias)
-        col3.metric("💯 Total de Pontos", f"{total_pontos:,.0f}")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("🏁 Corridas", resultados_construtor['id_corrida_fk'].nunique())
+        col2.metric("🏆 Vitórias", resultados_construtor[resultados_construtor['posicao_final'] == 1].shape[0])
+        col3.metric("🌍 Campeonatos", campeonatos)
+        col4.metric("💯 Total de Pontos", f"{resultados_construtor['pontos'].sum():,.0f}")
         st.divider()
 
-        st.subheader("Análise de Confiabilidade (Status de Chegada)")
-        status_merged = resultados_construtor.merge(status, left_on='id_status_fk', right_on='id_status')
-        status_counts = status_merged['status'].value_counts().reset_index()
-        
-        finished_statuses = ['Finished'] + [f'+{i} Lap' for i in range(1, 10)]
-        status_counts['category'] = status_counts['status'].apply(lambda x: 'Finalizou' if x in finished_statuses else 'Não Finalizou (Problema)')
-        
-        category_summary = status_counts.groupby('category')['count'].sum().reset_index()
+        col_graf1, col_graf2 = st.columns(2)
+        with col_graf1:
+            st.subheader("Análise de Confiabilidade")
+            status_merged = resultados_construtor.merge(status, left_on='id_status_fk', right_on='id_status')
+            finished_statuses = ['Finished'] + [f'+{i} Lap' for i in range(1, 20)]
+            status_merged['category'] = status_merged['status'].apply(lambda x: 'Finalizou' if x in finished_statuses else 'Não Finalizou')
+            category_summary = status_merged.groupby('category')['status'].count().reset_index(name='count')
+            fig = px.pie(category_summary, names='category', values='count', hole=0.4, 
+                         color_discrete_map={'Finalizou': 'green', 'Não Finalizou': F1_RED})
+            st.plotly_chart(fig, use_container_width=True)
+        with col_graf2:
+            st.subheader("Distribuição de Resultados")
+            posicoes = resultados_construtor[resultados_construtor['posicao_final'] > 0]['posicao_final'].value_counts().reset_index().sort_values('posicao_final').head(15)
+            fig = px.bar(posicoes, x='posicao_final', y='count', color_discrete_sequence=[F1_RED], labels={'posicao_final': 'Posição', 'count': 'Nº de Vezes'})
+            fig.update_layout(xaxis_type='category')
+            st.plotly_chart(fig, use_container_width=True)
 
-        fig = px.pie(category_summary, names='category', values='count', hole=0.4, 
-                     color_discrete_map={'Finalizou': 'green', 'Não Finalizou (Problema)': F1_RED})
+def render_pagina_analise_circuitos(data):
+    st.title("🛣️ Análise de Circuitos")
+    circuits, races, results, drivers = data['tbl_circuitos'], data['tbl_corridas'], data['tbl_resultados'], data['tbl_pilotos']
+    circuito_selecionado = st.selectbox("Selecione um Circuito", options=circuits.sort_values('nome_circuito')['nome_circuito'], index=None, placeholder="Buscar circuito...")
+    if circuito_selecionado:
+        circuit_id = circuits[circuits['nome_circuito'] == circuito_selecionado]['id_circuito'].iloc[0]
+        corridas_no_circuito = races[races['id_circuito_fk'] == circuit_id]
+        resultados_circuito = results[results['id_corrida_fk'].isin(corridas_no_circuito['id_corrida'])]
+        
+        vencedores = resultados_circuito[resultados_circuito['posicao_final'] == 1].merge(drivers, left_on='id_piloto_fk', right_on='id_piloto')
+        maior_vencedor = vencedores['nome_completo_piloto'].value_counts().idxmax() if not vencedores.empty else "N/A"
+        
+        st.metric("🏆 Maior Vencedor no Circuito", maior_vencedor)
+        st.divider()
+
+        st.subheader(f"Todos os Vencedores em {circuito_selecionado}")
+        vencedores_por_ano = vencedores.merge(corridas_no_circuito, left_on='id_corrida_fk', right_on='id_corrida')[['ano', 'nome_completo_piloto']]
+        st.dataframe(vencedores_por_ano.sort_values('ano', ascending=False), use_container_width=True)
+
+def render_pagina_h2h(data):
+    st.title("⚔️ Head-to-Head de Pilotos")
+    drivers, results = data['tbl_pilotos'], data['tbl_resultados']
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        piloto1 = st.selectbox("Selecione o Piloto 1", options=drivers.sort_values('sobrenome')['nome_completo_piloto'], index=None, key="h2h_p1")
+    with col2:
+        piloto2 = st.selectbox("Selecione o Piloto 2", options=drivers.sort_values('sobrenome')['nome_completo_piloto'], index=None, key="h2h_p2")
+        
+    if piloto1 and piloto2 and piloto1 != piloto2:
+        id1 = drivers[drivers['nome_completo_piloto'] == piloto1]['id_piloto'].iloc[0]
+        id2 = drivers[drivers['nome_completo_piloto'] == piloto2]['id_piloto'].iloc[0]
+        
+        stats1 = results[results['id_piloto_fk'] == id1]
+        stats2 = results[results['id_piloto_fk'] == id2]
+
+        vitorias1 = stats1[stats1['posicao_final'] == 1].shape[0]
+        vitorias2 = stats2[stats2['posicao_final'] == 1].shape[0]
+        podios1 = stats1[stats1['posicao_final'].isin([1,2,3])].shape[0]
+        podios2 = stats2[stats2['posicao_final'].isin([1,2,3])].shape[0]
+        pontos1 = stats1['pontos'].sum()
+        pontos2 = stats2['pontos'].sum()
+
+        corridas_juntos = stats1.merge(stats2, on='id_corrida_fk', suffixes=('_p1', '_p2'))
+        vitorias_h2h_p1 = corridas_juntos[corridas_juntos['posicao_final_p1'] < corridas_juntos['posicao_final_p2']].shape[0]
+        vitorias_h2h_p2 = corridas_juntos[corridas_juntos['posicao_final_p2'] < corridas_juntos['posicao_final_p1']].shape[0]
+
+        st.subheader(f"Comparativo: {piloto1} vs {piloto2}")
+        
+        fig = go.Figure()
+        fig.add_trace(go.Bar(name=piloto1, x=['Vitórias', 'Pódios', 'Pontos'], y=[vitorias1, podios1, pontos1], marker_color=F1_RED))
+        fig.add_trace(go.Bar(name=piloto2, x=['Vitórias', 'Pódios', 'Pontos'], y=[vitorias2, podios2, pontos2], marker_color=F1_GREY))
+        fig.update_layout(barmode='group', title_text='Estatísticas da Carreira')
         st.plotly_chart(fig, use_container_width=True)
 
-def render_pagina_crud(data):
-    st.title("🔩 Gerenciamento de Dados (CRUD)")
-    drivers, constructors = data['tbl_pilotos'], data['tbl_construtores']
-
-    tab_create, tab_update, tab_delete = st.tabs(["➕ Criar", "✏️ Atualizar", "❌ Deletar"])
-
-    with tab_create:
-        st.subheader("Adicionar Novo Piloto")
-        with st.form("form_novo_piloto"):
-            ref = st.text_input("Referência (ex: verstappen)")
-            num = st.number_input("Número", min_value=1, max_value=99)
-            code = st.text_input("Código (3 letras, ex: VER)", max_chars=3)
-            fname = st.text_input("Nome")
-            sname = st.text_input("Sobrenome")
-            dob = st.date_input("Data de Nascimento")
-            nac = st.text_input("Nacionalidade")
-            if st.form_submit_button("Adicionar Piloto"):
-                query = "INSERT INTO tbl_pilotos (ref_piloto, numero, codigo, nome, sobrenome, data_nascimento, nacionalidade) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-                if executar_comando_sql(query, (ref, num, code.upper(), fname, sname, dob, nac)):
-                    st.success(f"Piloto {fname} {sname} adicionado com sucesso!")
-                    
-    with tab_update:
-        st.subheader("Atualizar Nacionalidade de um Construtor")
-        constr_list = constructors.sort_values('nome_construtor')['nome_construtor'].tolist()
-        constr_sel = st.selectbox("Selecione o Construtor", options=constr_list, index=None)
-        if constr_sel:
-            id_constr = int(constructors[constructors['nome_construtor'] == constr_sel]['id_construtor'].iloc[0])
-            nova_nac = st.text_input("Digite a Nova Nacionalidade", key=f"nac_{id_constr}")
-            if st.button("Atualizar Nacionalidade"):
-                if executar_comando_sql("UPDATE tbl_construtores SET nacionalidade = %s WHERE id_construtor = %s", (nova_nac, id_constr)):
-                    st.success(f"Nacionalidade de '{constr_sel}' atualizada!")
-
-    with tab_delete:
-        st.subheader("Deletar um Piloto")
-        st.warning("A exclusão de um piloto é irreversível e pode afetar dados históricos.", icon="⚠️")
-        piloto_del = st.selectbox("Selecione o Piloto a ser deletado", options=drivers.sort_values('sobrenome')['nome_completo_piloto'], index=None)
-        if piloto_del and st.button(f"DELETAR {piloto_del}", type="primary"):
-            id_piloto_del = int(drivers[drivers['nome_completo_piloto'] == piloto_del]['id_piloto'].iloc[0])
-            if executar_comando_sql("DELETE FROM tbl_pilotos WHERE id_piloto = %s", (id_piloto_del,)):
-                st.success(f"Piloto '{piloto_del}' deletado com sucesso.")
+        st.subheader("Resultados em Corridas Juntos")
+        col_h2h1, col_h2h2, col_h2h3 = st.columns(3)
+        col_h2h1.metric("Total de Corridas Juntos", corridas_juntos.shape[0])
+        col_h2h2.metric(f"Vantagem para {piloto1}", f"{vitorias_h2h_p1} vezes")
+        col_h2h3.metric(f"Vantagem para {piloto2}", f"{vitorias_h2h_p2} vezes")
 
 def main():
     with st.sidebar:
         st.image("f1_logo.png", width=300)
         app_page = option_menu(
             menu_title='F1 Super Analytics',
-            options=['Visão Geral', 'Análise de Pilotos', 'Análise de Construtores', 'CRUD'],
-            icons=['trophy', 'person-badge', 'tools', 'pencil-square'],
+            options=['Visão Geral', 'Análise de Pilotos', 'Análise de Construtores', 'Análise de Circuitos', 'H2H Pilotos'],
+            icons=['trophy', 'person-badge', 'tools', 'signpost-split', 'people-fill'],
             menu_icon='speed',
             default_index=0,
             styles={
                 "container": {"padding": "5!important", "background-color": F1_BLACK},
-                "icon": {"color": "white", "font-size": "25px"}, 
+                "icon": {"color": "white", "font-size": "23px"}, 
                 "nav-link": {"font-size": "16px", "text-align": "left", "margin":"0px", "--hover-color": F1_RED},
                 "nav-link-selected": {"background-color": F1_RED},
             }
@@ -257,20 +261,24 @@ def main():
     
     if conn is None:
         return
-
     dados_completos = carregar_todos_os_dados()
-    if any(df.empty for df in dados_completos.values()):
-        st.error("Falha ao carregar um ou mais conjuntos de dados. A aplicação não pode continuar. Verifique os nomes das tabelas no banco de dados.")
+    if any(df.empty for name, df in dados_completos.items()):
+        st.error(f"Falha ao carregar um ou mais conjuntos de dados. Verifique a conexão e os nomes das tabelas no banco.")
         return
 
-    if app_page == 'Visão Geral':
-        render_pagina_visao_geral(dados_completos)
-    elif app_page == 'Análise de Pilotos':
-        render_pagina_analise_pilotos(dados_completos)
-    elif app_page == 'Análise de Construtores':
-        render_pagina_analise_construtores(dados_completos)
-    elif app_page == 'CRUD':
-        render_pagina_crud(dados_completos)
+    page_map = {
+        'Visão Geral': render_pagina_visao_geral,
+        'Análise de Pilotos': render_pagina_analise_pilotos,
+        'Análise de Construtores': render_pagina_analise_construtores,
+        'Análise de Circuitos': render_pagina_analise_circuitos,
+        'H2H Pilotos': render_pagina_h2h
+    }
+    page_function = page_map.get(app_page)
+    if page_function:
+        page_function(dados_completos)
+
+if __name__ == "__main__":
+    main()
 
 if __name__ == "__main__":
     main()
