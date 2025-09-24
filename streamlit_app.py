@@ -492,8 +492,8 @@ def render_h2h(data):
     id1 = data['drivers'][data['drivers']['driver_name'] == piloto1_nome]['driverId'].iloc[0]
     id2 = data['drivers'][data['drivers']['driver_name'] == piloto2_nome]['driverId'].iloc[0]
     
-    res1 = data['results_full'][data['results_full']['driverId'] == id1]
-    res2 = data['results_full'][data['results_full']['driverId'] == id2]
+    res1 = data['results_full'][data['results_full']['driverId'] == id1].sort_values(by='date').reset_index()
+    res2 = data['results_full'][data['results_full']['driverId'] == id2].sort_values(by='date').reset_index()
     quali1 = data['qualifying'][data['qualifying']['driverId'] == id1]
     quali2 = data['qualifying'][data['qualifying']['driverId'] == id2]
 
@@ -501,8 +501,8 @@ def render_h2h(data):
     podios1, podios2 = res1['position'].isin([1,2,3]).sum(), res2['position'].isin([1,2,3]).sum()
     poles1, poles2 = (quali1['position'] == 1).sum(), (quali2['position'] == 1).sum()
     
-    ultima_corrida1 = res1.sort_values('year', ascending=False).iloc[0] if not res1.empty else None
-    ultima_corrida2 = res2.sort_values('year', ascending=False).iloc[0] if not res2.empty else None
+    ultima_corrida1 = res1.iloc[-1] if not res1.empty else None
+    ultima_corrida2 = res2.iloc[-1] if not res2.empty else None
 
     res_comum = res1.merge(res2, on='raceId', suffixes=('_p1', '_p2'))
     res_comum_finalizado = res_comum.dropna(subset=['position_p1', 'position_p2'])
@@ -534,21 +534,27 @@ def render_h2h(data):
 
     st.header("Análise Gráfica Comparativa")
 
-    st.subheader("Comparativo de Carreira")
-    stats_df = pd.DataFrame({
-        'Métrica': ['Vitórias', 'Pódios', 'Poles'],
-        piloto1_nome: [vitorias1, podios1, poles1],
-        piloto2_nome: [vitorias2, podios2, poles2]
-    })
-    fig_bar = px.bar(stats_df, x='Métrica', y=[piloto1_nome, piloto2_nome], barmode='group',
-                     color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY},
-                     text_auto=True)
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.subheader("Trajetória de Vitórias na Carreira")
+    vitorias_p1_df = res1[res1['position'] == 1].reset_index(drop=True)
+    vitorias_p1_df['num_vitoria'] = vitorias_p1_df.index + 1
+    vitorias_p1_df['num_corrida'] = vitorias_p1_df['index'] + 1
+
+    vitorias_p2_df = res2[res2['position'] == 1].reset_index(drop=True)
+    vitorias_p2_df['num_vitoria'] = vitorias_p2_df.index + 1
+    vitorias_p2_df['num_corrida'] = vitorias_p2_df['index'] + 1
+
+    fig_traj = go.Figure()
+    fig_traj.add_trace(go.Scatter(x=vitorias_p1_df['num_corrida'], y=vitorias_p1_df['num_vitoria'], name=piloto1_nome, mode='lines+markers', line=dict(color=F1_RED, shape='spline')))
+    fig_traj.add_trace(go.Scatter(x=vitorias_p2_df['num_corrida'], y=vitorias_p2_df['num_vitoria'], name=piloto2_nome, mode='lines+markers', line=dict(color=F1_GREY, shape='spline')))
+    fig_traj.update_layout(title="Curva de Vitórias (Nº de GPs para cada vitória)",
+                           xaxis_title="Número de Corridas na Carreira",
+                           yaxis_title="Número de Vitórias Acumuladas")
+    st.plotly_chart(fig_traj, use_container_width=True)
     st.markdown("---")
     
     g1, g2 = st.columns(2)
     with g1:
-        st.subheader(f"Confronto em Corrida ({len(res_comum_finalizado)} corridas)")
+        st.subheader(f"Confronto Direto em Corrida ({len(res_comum_finalizado)} corridas)")
         df_pie_race = pd.DataFrame({'Piloto': [piloto1_nome, piloto2_nome], 'Vezes na Frente': [vantagem_corrida_p1, vantagem_corrida_p2]})
         fig_pie_r = px.pie(df_pie_race, values='Vezes na Frente', names='Piloto', hole=0.4, color='Piloto', color_discrete_map={piloto1_nome: F1_RED, piloto2_nome: F1_GREY})
         st.plotly_chart(fig_pie_r, use_container_width=True)
@@ -563,17 +569,6 @@ def render_h2h(data):
 
     st.markdown("---")
     
-    st.subheader("Linha do Tempo de Pontos na Carreira")
-    pontos1_ano = res1.groupby('year')['points'].sum().reset_index()
-    pontos2_ano = res2.groupby('year')['points'].sum().reset_index()
-    pontos_h2h = pontos1_ano.merge(pontos2_ano, on='year', how='outer', suffixes=('_p1', '_p2')).fillna(0)
-    
-    fig_timeline = go.Figure()
-    fig_timeline.add_trace(go.Scatter(x=pontos_h2h['year'], y=pontos_h2h['points_p1'].cumsum(), name=piloto1_nome, mode='lines+markers', line=dict(color=F1_RED)))
-    fig_timeline.add_trace(go.Scatter(x=pontos_h2h['year'], y=pontos_h2h['points_p2'].cumsum(), name=piloto2_nome, mode='lines+markers', line=dict(color=F1_GREY)))
-    fig_timeline.update_layout(title="Pontos Acumulados ao Longo das Temporadas", xaxis_title="Temporada", yaxis_title="Total de Pontos")
-    st.plotly_chart(fig_timeline, use_container_width=True)
-    
     st.subheader("Placar de Posições Finais (Apenas em Corridas Juntos)")
     posicoes_p1 = res_comum_finalizado['position_p1'].value_counts().nlargest(10)
     posicoes_p2 = res_comum_finalizado['position_p2'].value_counts().nlargest(10)
@@ -584,7 +579,7 @@ def render_h2h(data):
     fig_pos.add_trace(go.Bar(name=piloto2_nome, x=df_pos.index, y=df_pos[piloto2_nome], text=df_pos[piloto2_nome], marker_color=F1_GREY))
     fig_pos.update_layout(barmode='group', xaxis_title="Posição Final", yaxis_title="Número de Vezes", xaxis={'categoryorder':'category ascending'})
     st.plotly_chart(fig_pos, use_container_width=True)
-
+    
 def render_hall_da_fama(data):
     st.title("🏆 Hall da Fama")
     
