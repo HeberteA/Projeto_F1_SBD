@@ -582,7 +582,7 @@ def render_h2h(data):
     
 def render_hall_da_fama(data):
     st.title("🏆 Hall da Fama: As Lendas do Esporte")
-   st.markdown("---")
+    st.markdown("---")
 
     results_full = data['results_full']
     drivers = data['drivers']
