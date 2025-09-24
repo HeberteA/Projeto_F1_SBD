@@ -1,6 +1,7 @@
 streamlit
-psycopg2-binary
 pandas
 plotly
 streamlit-option-menu
+psycopg2-binary
 statsmodels
+scikit-learn
