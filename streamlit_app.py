@@ -581,33 +581,113 @@ def render_h2h(data):
     st.plotly_chart(fig_pos, use_container_width=True)
     
 def render_hall_da_fama(data):
-    st.title("🏆 Hall da Fama")
+    st.title("🏆 Hall da Fama: As Lendas do Esporte")
+    st.markdown("---")
+
+    results_full = data['results_full']
+    drivers = data['drivers']
+    constructors = data['constructors']
+    qualifying = data['qualifying']
     
-    # Cálculos para os rankings
-    vitorias_pilotos = data['results_full'][data['results_full']['position'] == 1]['driver_name'].value_counts().nlargest(15)
-    podios_pilotos = data['results_full'][data['results_full']['position'].isin([1,2,3])]['driver_name'].value_counts().nlargest(15)
-    poles_pilotos = data['qualifying'][data['qualifying']['position'] == 1].merge(data['drivers'], on='driverId')['driver_name'].value_counts().nlargest(15)
-    vitorias_constr = data['results_full'][data['results_full']['position'] == 1]['name_y'].value_counts().nlargest(15)
+    races_com_standings = data['races'].merge(data['driver_standings'], on='raceId')
+    finais_de_ano = races_com_standings.loc[races_com_standings.groupby('year')['round'].idxmax()]
+    campeoes_pilotos = finais_de_ano[finais_de_ano['position'] == 1]['driver_name'].value_counts()
+    
+    races_com_standings_c = data['races'].merge(data['constructor_standings'], on='raceId')
+    finais_de_ano_c = races_com_standings_c.loc[races_com_standings_c.groupby('year')['round'].idxmax()]
+    campeoes_construtores = finais_de_ano_c[finais_de_ano_c['position'] == 1]['name'].value_counts()
 
-    tab_vit, tab_pod, tab_pol, tab_con = st.tabs(["🥇 Vitórias", "🍾 Pódios", "⏱️ Poles", "🏎️ Construtores"])
+    vitorias_temporada_piloto = results_full[results_full['position'] == 1].groupby(['year', 'driver_name']).size().nlargest(1)
+    vitorias_temporada_construtor = results_full[results_full['position'] == 1].groupby(['year', 'name_y']).size().nlargest(1)
 
-    with tab_vit:
-        fig = px.bar(vitorias_pilotos, x=vitorias_pilotos.values, y=vitorias_pilotos.index, orientation='h', color_discrete_sequence=[F1_RED])
-        fig.update_layout(title="Top 15 Pilotos com Mais Vitórias", yaxis={'categoryorder':'total ascending'}, xaxis_title="Total", yaxis_title="")
-        st.plotly_chart(fig, use_container_width=True)
-    with tab_pod:
-        fig = px.bar(podios_pilotos, x=podios_pilotos.values, y=podios_pilotos.index, orientation='h', color_discrete_sequence=[F1_GREY])
-        fig.update_layout(title="Top 15 Pilotos com Mais Pódios", yaxis={'categoryorder':'total ascending'}, xaxis_title="Total", yaxis_title="")
-        st.plotly_chart(fig, use_container_width=True)
-    with tab_pol:
-        fig = px.bar(poles_pilotos, x=poles_pilotos.values, y=poles_pilotos.index, orientation='h', color_discrete_sequence=[F1_BLACK])
-        fig.update_layout(title="Top 15 Pilotos com Mais Poles", yaxis={'categoryorder':'total ascending'}, xaxis_title="Total", yaxis_title="")
-        st.plotly_chart(fig, use_container_width=True)
-    with tab_con:
-        fig = px.bar(vitorias_constr, x=vitorias_constr.values, y=vitorias_constr.index, orientation='h', color_discrete_sequence=px.colors.qualitative.Plotly)
-        fig.update_layout(title="Top 15 Construtores com Mais Vitórias", yaxis={'categoryorder':'total ascending'}, xaxis_title="Total", yaxis_title="")
-        st.plotly_chart(fig, use_container_width=True)
+    corridas_por_piloto = results_full.groupby('driverId')['raceId'].nunique()
+    vitorias_por_piloto_raw = results_full[results_full['position'] == 1]['driverId'].value_counts()
+    perc_vitorias = (vitorias_por_piloto_raw / corridas_por_piloto).dropna().nlargest(1)
+    
+    vitorias_pilotos = results_full[results_full['position'] == 1]['driver_name'].value_counts()
+    podios_pilotos = results_full[results_full['position'].isin([1,2,3])]['driver_name'].value_counts()
+    poles_pilotos = qualifying[qualifying['position'] == 1].merge(drivers, on='driverId')['driver_name'].value_counts()
+    
+    vitorias_construtores = results_full[results_full['position'] == 1]['name_y'].value_counts()
+    podios_construtores = results_full[results_full['position'].isin([1,2,3])]['name_y'].value_counts()
 
+    st.header("Os Recordistas Absolutos")
+    st.subheader("Pilotos Lendários")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("👑 Mais Títulos", f"{campeoes_pilotos.index[0]}", f"{campeoes_pilotos.values[0]} Títulos")
+    c2.metric("🥇 Mais Vitórias", f"{vitorias_pilotos.index[0]}", f"{vitorias_pilotos.values[0]} Vitórias")
+    c3.metric("🍾 Mais Pódios", f"{podios_pilotos.index[0]}", f"{podios_pilotos.values[0]} Pódios")
+    c4.metric("⏱️ Mais Poles", f"{poles_pilotos.index[0]}", f"{poles_pilotos.values[0]} Poles")
+    
+    st.subheader("Construtores Dominantes")
+    c5, c6, c7, c8 = st.columns(4)
+    c5.metric("👑 Mais Títulos", f"{campeoes_construtores.index[0]}", f"{campeoes_construtores.values[0]} Títulos")
+    c6.metric("🥇 Mais Vitórias", f"{vitorias_construtores.index[0]}", f"{vitorias_construtores.values[0]} Vitórias")
+    c7.metric("🍾 Mais Pódios", f"{podios_construtores.index[0]}", f"{podios_construtores.values[0]} Pódios")
+    
+    st.subheader("Feitos Históricos")
+    c9, c10, c11, c12 = st.columns(4)
+    piloto_mais_efetivo_nome = data['drivers'][data['drivers']['driverId'] == perc_vitorias.index[0]]['driver_name'].iloc[0]
+    c9.metric("📊 Maior % de Vitórias", piloto_mais_efetivo_nome, f"{perc_vitorias.values[0]*100:.2f}%")
+    c10.metric("🗓️ Mais Vitórias (1 Ano)", f"{vitorias_temporada_piloto.index[0][1]} ({vitorias_temporada_piloto.index[0][0]})", f"{vitorias_temporada_piloto.values[0]} Vitórias")
+    c11.metric("🗓️ Mais Vitórias (1 Ano)", f"{vitorias_temporada_construtor.index[0][1]} ({vitorias_temporada_construtor.index[0][0]})", f"{vitorias_temporada_construtor.values[0]} Vitórias")
+
+    st.markdown("---")
+
+    st.header("Rankings Históricos Detalhados")
+
+    st.subheader("Rankings de Pilotos (Top 15)")
+    g1, g2, g3 = st.columns(3)
+    with g1:
+        st.markdown("**Mais Vitórias**")
+        fig_vit = px.bar(vitorias_pilotos.head(15), x=vitorias_pilotos.head(15).values, y=vitorias_pilotos.head(15).index, orientation='h', text=vitorias_pilotos.head(15).values, color_discrete_sequence=[F1_RED])
+        fig_vit.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="")
+        st.plotly_chart(fig_vit, use_container_width=True)
+    with g2:
+        st.markdown("**Mais Pódios**")
+        fig_pod = px.bar(podios_pilotos.head(15), x=podios_pilotos.head(15).values, y=podios_pilotos.head(15).index, orientation='h', text=podios_pilotos.head(15).values, color_discrete_sequence=[F1_GREY])
+        fig_pod.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="")
+        st.plotly_chart(fig_pod, use_container_width=True)
+    with g3:
+        st.markdown("**Mais Pole Positions**")
+        fig_pol = px.bar(poles_pilotos.head(15), x=poles_pilotos.head(15).values, y=poles_pilotos.head(15).index, orientation='h', text=poles_pilotos.head(15).values, color_discrete_sequence=[F1_BLACK])
+        fig_pol.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="")
+        st.plotly_chart(fig_pol, use_container_width=True)
+        
+    st.markdown("---")
+    
+    st.subheader("Rankings de Construtores (Top 15)")
+    g4, g5, g6 = st.columns(3)
+    with g4:
+        st.markdown("**Mais Títulos**")
+        fig_camp_c = px.bar(campeoes_construtores, x=campeoes_construtores.values, y=campeoes_construtores.index, orientation='h', text=campeoes_construtores.values, color_discrete_sequence=[F1_RED])
+        fig_camp_c.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="")
+        st.plotly_chart(fig_camp_c, use_container_width=True)
+    with g5:
+        st.markdown("**Mais Vitórias**")
+        fig_vit_c = px.bar(vitorias_construtores.head(15), x=vitorias_construtores.head(15).values, y=vitorias_construtores.head(15).index, orientation='h', text=vitorias_construtores.head(15).values, color_discrete_sequence=[F1_GREY])
+        fig_vit_c.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="")
+        st.plotly_chart(fig_vit_c, use_container_width=True)
+    with g6:
+        st.markdown("**Mais Pódios**")
+        fig_pod_c = px.bar(podios_construtores.head(15), x=podios_construtores.head(15).values, y=podios_construtores.head(15).index, orientation='h', text=podios_construtores.head(15).values, color_discrete_sequence=[F1_BLACK])
+        fig_pod_c.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="")
+        st.plotly_chart(fig_pod_c, use_container_width=True)
+
+    st.markdown("---")
+
+    st.subheader("Batalha das Nações")
+    g7, g8 = st.columns(2)
+    with g7:
+        st.markdown("**Títulos Mundiais de Pilotos por País**")
+        nacoes_campeas = finais_de_ano[finais_de_ano['position'] == 1].merge(drivers, on='driverId')['nationality'].value_counts()
+        fig_nac_camp = px.pie(nacoes_campeas, values=nacoes_campeas.values, names=nacoes_campeas.index, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+        st.plotly_chart(fig_nac_camp, use_container_width=True)
+    with g8:
+        st.markdown("**Vitórias de Pilotos por País (Top 10)**")
+        nacoes_vitoriosas = results_full[results_full['position'] == 1]['nationality_x'].value_counts().nlargest(10)
+        fig_nac_vit = px.bar(nacoes_vitoriosas, x=nacoes_vitoriosas.index, y=nacoes_vitoriosas.values, text=nacoes_vitoriosas.values, color_discrete_sequence=F1_PALETTE)
+        st.plotly_chart(fig_nac_vit, use_container_width=True)
 def render_analise_circuitos(data):
     st.title("🛣️ Análise de Circuitos")
     st.markdown("---")
