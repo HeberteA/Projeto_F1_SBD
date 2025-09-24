@@ -8,7 +8,7 @@ from datetime import date
 
 
 st.set_page_config(layout="wide", page_title="F1 Super Analytics Pro", page_icon="f1.png")
-F1_PALETTE = ["#ff0800ff", "#7F7F7F", "#6b0000", "#B1B1B8", "#c52929ff", "#FFFFFF", "#9c0000ff"]
+F1_PALETTE = ["#ff0800", "#7F7F7F", "#6b0000", "#B1B1B8", "#c52929", "#FFFFFF", "#9c0000"]
 F1_RED = F1_PALETTE[0]
 F1_BLACK = F1_PALETTE[2]
 F1_GREY = F1_PALETTE[1]
