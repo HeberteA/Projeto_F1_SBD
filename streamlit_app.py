@@ -12,7 +12,7 @@ F1_PALETTE = ["#ff0800", "#7F7F7F", "#6b0000", "#B1B1B8", "#c52929", "#FFFFFF", 
 F1_RED = F1_PALETTE[0]
 F1_BLACK = F1_PALETTE[2]
 F1_GREY = F1_PALETTE[1]
-F1_WHITE = F1_PALETTE[5]
+F1_WHITE = F1_PALETTE[4]
 
 @st.cache_resource
 def conectar_db():
