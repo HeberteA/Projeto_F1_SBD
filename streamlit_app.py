@@ -40,16 +40,22 @@ def executar_comando_sql(conn, comando, params=None):
         st.error(f"Erro ao executar comando SQL: {e}")
         return False
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=60)
 def carregar_todos_os_dados(_conn):
+    st.info("Carregando e preparando dados do banco de dados...")
     
     queries = {
-        'races': 'select * from races', 'results': 'select * from results',
-        'drivers': 'select * from drivers', 'constructors': 'select * from constructors',
-        'circuits': 'select * from circuits', 'status': 'select * from status',
+        'races': 'select * from races', 
+        'results': 'select * from results',
+        'drivers': 'select * from drivers', 
+        'constructors': 'select * from constructors',
+        'circuits': 'select * from circuits', 
+        'status': 'select * from status',
         'driver_standings': 'select * from driver_standings',
         'constructor_standings': 'select * from constructor_standings',
-        'qualifying': 'select * from qualifying', 'pit_stops': 'select * from pit_stops'
+        'qualifying': 'select * from qualifying', 
+        'pit_stops': 'select * from pit_stops',
+        'lap_times': 'select * from lap_times'
     }
     data = {}
     try:
@@ -74,7 +80,7 @@ def carregar_todos_os_dados(_conn):
             'pit_stops': ['milliseconds'],
             'driver_standings': ['points', 'position'],
             'constructor_standings': ['points', 'position'],
-            'lap_times': ['milliseconds', 'position', 'lap']
+            'lap_times': ['milliseconds', 'position', 'lap'] 
         }
 
         for df_name, cols in numeric_cols.items():
