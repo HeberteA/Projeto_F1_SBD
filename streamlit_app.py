@@ -18,15 +18,19 @@ def conectar_db():
 
 conn = conectar_db()
 
-@st.cache_data(ttl=3600)
-def consultar_dados_df(query, params=None):
-    if not conn: return pd.DataFrame()
+@st.cache_resource
+def conectar_db():
     try:
-        with conn.cursor() as cur:
-            return pd.read_sql_query(query, conn, params=params)
+        db_secrets = st.secrets["database"]
+        if "connection_string" in db_secrets:
+            return psycopg2.connect(db_secrets["connection_string"])
+        else:
+            return psycopg2.connect(**db_secrets)
     except Exception as e:
-        st.warning(f"Erro ao consultar dados: {e}")
-        return pd.DataFrame()
+        st.error(f"Erro CRÍTICO de conexão com o banco de dados: {e}")
+        return None
+
+conn = conectar_db()
 
 def executar_comando_sql(comando, params=None):
     if not conn: return None
@@ -233,6 +237,7 @@ def render_pagina_crud(data):
 
 def main():
     with st.sidebar:
+        st.image("f1_logo.png", width=300)
         app_page = option_menu(
             menu_title='F1 Super Analytics',
             options=['Visão Geral', 'Análise de Pilotos', 'Análise de Construtores', 'CRUD'],
