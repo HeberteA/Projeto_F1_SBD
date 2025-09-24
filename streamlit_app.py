@@ -8,7 +8,7 @@ from datetime import date
 
 
 st.set_page_config(layout="wide", page_title="F1 Super Analytics Pro", page_icon="f1.png")
-F1_PALETTE = ["#E10600", "#7F7F7F", "#410000ff", "#B1B1B8", "#FFFFFF"]
+F1_PALETTE = ["#E10600", "#7F7F7F", "#6b0000ff", "#B1B1B8", "#FFFFFF"]
 F1_RED = F1_PALETTE[0]
 F1_BLACK = F1_PALETTE[2]
 F1_GREY = F1_PALETTE[1]
@@ -350,58 +350,135 @@ def render_analise_pilotos(data):
 
 def render_analise_construtores(data):
     st.title("🔧 Análise de Construtores")
-    construtor_nome = st.selectbox("Selecione um Construtor", options=data['constructors'].sort_values('name')['name'], index=None)
+    st.markdown("---")
+
+    construtor_nome = st.selectbox(
+        "Selecione um Construtor",
+        options=data['constructors'].sort_values('name')['name'],
+        index=None,
+        placeholder="Digite o nome de um construtor..."
+    )
+
+    if not construtor_nome:
+        st.info("Selecione um construtor para ver o dossiê completo de sua história.")
+        return
+
+    construtor_info = data['constructors'][data['constructors']['name'] == construtor_nome].iloc[0]
+    id_construtor = construtor_info['constructorId']
     
-    if construtor_nome:
-        construtor_info = data['constructors'][data['constructors']['name'] == construtor_nome].iloc[0]
-        id_construtor = construtor_info['constructorId']
-        
-        results_construtor = data['results_full'][data['results_full']['constructorId'] == id_construtor]
-        
-        st.header(construtor_nome)
+    results_construtor = data['results_full'][data['results_full']['constructorId'] == id_construtor]
+    quali_construtor = data['qualifying'][data['qualifying']['constructorId'] == id_construtor]
 
-        standings_construtor = data['constructor_standings'][data['constructor_standings']['constructorId'] == id_construtor]
-        campeonatos = 0
-        if not standings_construtor.empty:
-            anos_disputados = data['races'][data['races']['raceId'].isin(standings_construtor['raceId'])]['year'].unique()
-            for year in anos_disputados:
-                races_ano = data['races'][data['races']['year'] == year]
-                if races_ano.empty: continue
-                ultima_corrida_ano = races_ano['raceId'].max()
-                pos_final = data['constructor_standings'][(data['constructor_standings']['raceId'] == ultima_corrida_ano) & (data['constructor_standings']['position'] == 1)]
-                if not pos_final.empty and pos_final['constructorId'].iloc[0] == id_construtor:
-                    campeonatos += 1
-        
-        total_entradas = len(results_construtor)
-        total_dnfs = results_construtor['position'].isna().sum()
-        confiabilidade = ((total_entradas - total_dnfs) / total_entradas * 100) if total_entradas > 0 else 0
+    if results_construtor.empty:
+        st.warning(f"Não há dados de resultados detalhados para {construtor_nome}.")
+        return
 
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("🏆 Campeonatos", campeonatos)
-        c2.metric("🌍 Nacionalidade", construtor_info['nationality'])
-        c3.metric("💯 Pontos por Corrida (Média)", f"{results_construtor['points'].sum() / results_construtor['raceId'].nunique():.2f}")
-        c4.metric("🔧 Confiabilidade", f"{confiabilidade:.2f}%")
-        st.divider()
+    primeiro_ano = results_construtor['year'].min()
+    ultimo_ano = results_construtor['year'].max()
+    
+    standings_construtor = data['constructor_standings'][data['constructor_standings']['constructorId'] == id_construtor]
+    campeonatos = 0
+    if not standings_construtor.empty:
+        anos_disputados = data['races'][data['races']['raceId'].isin(standings_construtor['raceId'])]['year'].unique()
+        for year in anos_disputados:
+            races_ano = data['races'][data['races']['year'] == year]
+            if races_ano.empty: continue
+            ultima_corrida_ano = races_ano['raceId'].max()
+            pos_final = data['constructor_standings'][(data['constructor_standings']['raceId'] == ultima_corrida_ano) & (data['constructor_standings']['position'] == 1)]
+            if not pos_final.empty and pos_final['constructorId'].iloc[0] == id_construtor:
+                campeonatos += 1
+    
+    total_corridas = results_construtor['raceId'].nunique()
+    total_entradas = len(results_construtor) 
+    total_vitorias = (results_construtor['position'] == 1).sum()
+    total_podios = results_construtor['position'].isin([1, 2, 3]).sum()
+    total_poles = (quali_construtor['position'] == 1).sum()
+    total_pontos = results_construtor['points'].sum()
+    total_dnfs = results_construtor['position'].isna().sum()
 
-        g1, g2 = st.columns(2)
-        with g1:
-            st.subheader("Pontos por Temporada")
-            pontos_ano = results_construtor.groupby('year')['points'].sum().reset_index()
-            fig_pontos = px.bar(pontos_ano, x='year', y='points', color_discrete_sequence=[F1_GREY])
-            st.plotly_chart(fig_pontos, use_container_width=True)
+    perc_vitorias = (total_vitorias / total_corridas * 100) if total_corridas > 0 else 0
+    confiabilidade = ((total_entradas - total_dnfs) / total_entradas * 100) if total_entradas > 0 else 0
+    pontos_por_entrada = total_pontos / total_entradas if total_entradas > 0 else 0
+    
+    dobradinhas = 0
+    corridas_com_multiplos_carros = results_construtor['raceId'].value_counts()
+    corridas_validas = corridas_com_multiplos_carros[corridas_com_multiplos_carros >= 2].index
+    for race_id in corridas_validas:
+        res_corrida = results_construtor[results_construtor['raceId'] == race_id]
+        if {1, 2}.issubset(set(res_corrida['position'])):
+            dobradinhas += 1
             
-        with g2:
-            st.subheader("Motivos de Abandono (DNF)")
-            dnf_reasons = results_construtor[results_construtor['position'].isna()]['status'].value_counts().nlargest(10)
-            fig_dnf = px.bar(dnf_reasons, x=dnf_reasons.values, y=dnf_reasons.index, orientation='h', color_discrete_sequence=[F1_RED])
-            fig_dnf.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="", xaxis_title="Ocorrências")
-            st.plotly_chart(fig_dnf, use_container_width=True)
+    piloto_mais_pontos_id = results_construtor.groupby('driverId')['points'].sum().idxmax()
+    piloto_mais_pontos_nome = data['drivers'][data['drivers']['driverId'] == piloto_mais_pontos_id]['driver_name'].iloc[0]
 
-        st.subheader("Comparativo de Pilotos da Equipe por Temporada")
+    st.header(f"Dossiê da Equipe: {construtor_nome}")
+
+    st.subheader("Informações Gerais")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("🌍 Nacionalidade", construtor_info['nationality'])
+    c2.metric("🏁 Primeira Temporada", f"{primeiro_ano}")
+    c3.metric("🔚 Última Temporada", f"{ultimo_ano}")
+    c4.metric("🌟 Piloto com Mais Pontos", piloto_mais_pontos_nome)
+
+    st.subheader("Números Históricos")
+    c5, c6, c7, c8 = st.columns(4)
+    c5.metric("🏆 Campeonatos Mundiais", campeonatos)
+    c6.metric("🥇 Vitórias Totais", f"{total_vitorias}")
+    c7.metric("🍾 Pódios Totais", f"{total_podios}")
+    c8.metric("⏱️ Poles Totais", f"{total_poles}")
+
+    st.subheader("Métricas de Performance")
+    c9, c10, c11, c12 = st.columns(4)
+    c9.metric("📊 % de Vitórias", f"{perc_vitorias:.2f}%")
+    c10.metric("📈 Pontos por Entrada", f"{pontos_por_entrada:.2f}")
+    c11.metric("🔧 Confiabilidade", f"{confiabilidade:.2f}%")
+    c12.metric("🥈 Dobradinhas (1-2)", f"{dobradinhas}")
+    
+    st.markdown("---")
+
+    st.header("Análise Gráfica Histórica")
+
+    st.subheader("Desempenho Anual no Campeonato")
+    if not standings_construtor.empty:
+        races_com_standings = data['races'].merge(standings_construtor, on='raceId')
+        pos_final_ano = races_com_standings.loc[races_com_standings.groupby('year')['round'].idxmax()]
+        fig_champ = px.line(pos_final_ano, x='year', y='position', markers=True, 
+                            title="Posição Final no Campeonato de Construtores por Ano",
+                            labels={'year': 'Temporada', 'position': 'Posição Final'},
+                            color_discrete_sequence=[F1_BLACK])
+        fig_champ.update_yaxes(autorange="reversed")
+        st.plotly_chart(fig_champ, use_container_width=True)
+
+    st.subheader("Resumo de Resultados por Temporada")
+    results_construtor['categoria_resultado'] = results_construtor['position'].apply(lambda pos: 'Vitória' if pos == 1 else ('Pódio (2-3)' if pos in [2,3] else ('Pontos (4-10)' if 4 <= pos <= 10 else ('Não Pontuou' if pd.notna(pos) else 'DNF'))))
+    resultados_ano = results_construtor.groupby('year')['categoria_resultado'].value_counts().unstack(fill_value=0)
+    fig_resumo_ano = px.bar(resultados_ano, x=resultados_ano.index, y=resultados_ano.columns,
+                             title="Qualidade dos Resultados a Cada Temporada",
+                             labels={'year': 'Temporada', 'value': 'Número de Carros', 'variable': 'Resultado'},
+                             color_discrete_map={
+                                 'Vitória': F1_RED, 'Pódio (2-3)': F1_GREY,
+                                 'Pontos (4-10)': F1_BLACK, 'Não Pontuou': '#D3D3D3', 'DNF': '#A9A9A9'
+                             })
+    st.plotly_chart(fig_resumo_ano, use_container_width=True)
+    st.markdown("---")
+
+    g1, g2 = st.columns(2)
+    with g1:
+        st.subheader("Comparativo de Pilotos da Equipe")
         pontos_piloto_ano = results_construtor.groupby(['year', 'driver_name'])['points'].sum().reset_index()
-        fig_pilotos = px.bar(pontos_piloto_ano, x='year', y='points', color='driver_name', 
-                             title="Pontos por Piloto a Cada Temporada", color_discrete_sequence=px.colors.qualitative.Plotly)
+        fig_pilotos = px.bar(pontos_piloto_ano, x='year', y='points', color='driver_name',
+                             title="Pontos por Piloto a Cada Temporada",
+                             labels={'year':'Temporada', 'points':'Pontos', 'driver_name':'Piloto'},
+                             color_discrete_sequence=px.colors.qualitative.Plotly)
         st.plotly_chart(fig_pilotos, use_container_width=True)
+    with g2:
+        st.subheader("Análise de Confiabilidade")
+        dnf_reasons = results_construtor[results_construtor['position'].isna()]['status'].value_counts().nlargest(10)
+        fig_dnf = px.bar(dnf_reasons, y=dnf_reasons.index, x=dnf_reasons.values, orientation='h',
+                          color_discrete_sequence=[F1_GREY], text=dnf_reasons.values)
+        fig_dnf.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="", xaxis_title="Ocorrências",
+                              title="Principais Motivos de Abandono")
+        st.plotly_chart(fig_dnf, use_container_width=True)
 
 def render_h2h(data):
     st.title("⚔️ Head-to-Head")
