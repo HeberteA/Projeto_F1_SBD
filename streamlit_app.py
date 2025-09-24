@@ -4,36 +4,57 @@ import plotly.express as px
 import plotly.graph_objects as go
 from streamlit_option_menu import option_menu
 import psycopg2 
+
 st.set_page_config(layout="wide", page_title="F1 Super Analytics", page_icon="f1.png")
+
 F1_PALETTE = ["#E10600", "#15151E", "#7F7F7F", "#B1B1B8", "#FF8700", "#00A000", "#FFFFFF"]
 F1_RED = F1_PALETTE[0]
 F1_BLACK = F1_PALETTE[1]
 F1_GREY = F1_PALETTE[2]
 
+@st.cache_resource
+def conectar_db():
+    try:
+        db_secrets = st.secrets["database"]
+        # Procura por uma string de conexão completa primeiro
+        conn_str = db_secrets.get("uri") or db_secrets.get("url") or db_secrets.get("connection_string")
+        
+        if conn_str:
+            return psycopg2.connect(conn_str)
+        else:
+            # Se não encontrar, tenta usar chaves separadas (host, dbname, user, etc.)
+            return psycopg2.connect(**db_secrets)
+            
+    except Exception as e:
+        st.error(f"Erro CRÍTICO de conexão com o banco de dados: {e}")
+        return None
+        
 @st.cache_data(ttl=60)
-def carregar_todos_os_dados():
-    file_map = {
-        'races': 'races.csv',
-        'results': 'results.csv',
-        'drivers': 'drivers.csv',
-        'constructors': 'constructors.csv',
-        'circuits': 'circuits.csv',
-        'status': 'status.csv',
-        'driver_standings': 'driver_standings.csv',
-        'constructor_standings': 'constructor_standings.csv',
-        'qualifying': 'qualifying.csv',
-        'lap_times': 'lap_times.csv',
-        'pit_stops': 'pit_stops.csv',
-        'sprint_results': 'sprint_results.csv'
+def carregar_todos_os_dados(conn):
+    st.info("Carregando dados do banco de dados... Isso pode levar um momento.")
+    queries = {
+        'races': 'SELECT * FROM races',
+        'results': 'SELECT * FROM results',
+        'drivers': 'SELECT * FROM drivers',
+        'constructors': 'SELECT * FROM constructors',
+        'circuits': 'SELECT * FROM circuits',
+        'status': 'SELECT * FROM status',
+        'driver_standings': 'SELECT * FROM driver_standings',
+        'constructor_standings': 'SELECT * FROM constructor_standings',
+        'qualifying': 'SELECT * FROM qualifying',
+        'lap_times': 'SELECT * FROM lap_times',
+        'pit_stops': 'SELECT * FROM pit_stops',
+        'sprint_results': 'SELECT * FROM sprint_results'
     }
     
     data = {}
     try:
-        for name, file in file_map.items():
-            data[name] = pd.read_csv(file)
+        for name, query in queries.items():
+            data[name] = pd.read_sql_query(query, conn)
 
         for df_name in data:
             data[df_name].replace('\\N', pd.NA, inplace=True)
+        
         data['drivers']['driver_name'] = data['drivers']['forename'] + ' ' + data['drivers']['surname']
         
         data['results']['points'] = pd.to_numeric(data['results']['points'])
@@ -43,10 +64,10 @@ def carregar_todos_os_dados():
         data['pit_stops']['milliseconds'] = pd.to_numeric(data['pit_stops']['milliseconds'])
         data['pit_stops']['duration'] = data['pit_stops']['milliseconds'] / 1000
 
+        st.success("Dados carregados com sucesso!")
         return data
-    except FileNotFoundError as e:
-        st.error(f"Erro ao carregar os dados: Arquivo não encontrado -> {e.filename}. "
-                 "Certifique-se de que todos os arquivos CSV estão na pasta correta.")
+    except Exception as e:
+        st.error(f"Erro ao executar consulta SQL: {e}. Verifique se os nomes das tabelas no código correspondem aos do seu banco de dados.")
         return None
 
 def render_visao_geral(data):
@@ -356,7 +377,11 @@ def main():
             styles={"nav-link-selected": {"background-color": F1_RED}}
         )
     
-    dados_completos = carregar_todos_os_dados()
+    conn = conectar_db() # Garante que a conexão seja estabelecida
+    if conn is None:
+        st.stop() # Interrompe a execução se a conexão falhar
+        
+    dados_completos = carregar_todos_os_dados(conn)
     if dados_completos is None:
         st.stop()
 
