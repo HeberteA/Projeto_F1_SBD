@@ -874,22 +874,64 @@ def render_pagina_gerenciamento(conn):
                     st.warning("Por favor, preencha todos os campos.")
 
     with tab_update:
-        st.subheader("Atualizar Nacionalidade de um Piloto")
+        st.subheader("Atualizar Dados de um Piloto")
         try:
-            pilotos_df_update = pd.read_sql_query("SELECT \"driverId\", forename || ' ' || surname as driver_name FROM drivers ORDER BY surname", conn)
+            pilotos_df_update = pd.read_sql_query("SELECT \"driverId\", forename || ' ' || surname as driver_name, code, number, nationality FROM drivers ORDER BY surname", conn)
             pilotos_df_update.dropna(subset=['driverId', 'driver_name'], inplace=True)
-            piloto_selecionado = st.selectbox("Selecione um piloto para atualizar", options=pilotos_df_update['driver_name'], index=None)
             
-            if piloto_selecionado:
-                id_piloto = int(pilotos_df_update[pilotos_df_update['driver_name'] == piloto_selecionado]['driverId'].iloc[0])
-                nova_nacionalidade = st.text_input("Digite a nova nacionalidade")
-                if st.button("Atualizar Nacionalidade"):
-                    if nova_nacionalidade:
-                        query = 'UPDATE drivers SET nationality = %s WHERE "driverId" = %s'
-                        if executar_comando_sql(conn, query, (nova_nacionalidade, id_piloto)):
-                            st.success(f"Nacionalidade do piloto {piloto_selecionado} atualizada com sucesso!")
+            piloto_selecionado_nome = st.selectbox("Selecione um piloto para atualizar", options=pilotos_df_update['driver_name'], index=None)
+            
+            if piloto_selecionado_nome:
+                piloto_info = pilotos_df_update[pilotos_df_update['driver_name'] == piloto_selecionado_nome].iloc[0]
+                id_piloto = int(piloto_info['driverId'])
+
+                st.write("---")
+                st.write(f"Editando dados de **{piloto_selecionado_nome}**:")
+
+                novo_codigo = st.text_input(
+                    "Código (3 letras)", 
+                    value=piloto_info['code'] or "", 
+                    max_chars=3, 
+                    key=f"code_{id_piloto}"
+                )
+                novo_numero = st.number_input(
+                    "Número do Piloto", 
+                    value=int(piloto_info['number']) if pd.notna(piloto_info['number']) else None,
+                    min_value=0, max_value=99, step=1, 
+                    key=f"number_{id_piloto}"
+                )
+                nova_nacionalidade = st.text_input(
+                    "Nacionalidade", 
+                    value=piloto_info['nationality'] or "", 
+                    key=f"nat_{id_piloto}"
+                )
+
+                if st.button("Salvar Alterações"):
+                    update_fields = []
+                    update_values = []
+                    
+                    if novo_codigo and novo_codigo.upper() != piloto_info['code']:
+                        update_fields.append("code = %s")
+                        update_values.append(novo_codigo.upper())
+                    
+                    if pd.notna(novo_numero) and (pd.isna(piloto_info['number']) or novo_numero != int(piloto_info['number'])):
+                        update_fields.append("number = %s")
+                        update_values.append(novo_numero)
+                    
+                    if nova_nacionalidade and nova_nacionalidade != piloto_info['nationality']:
+                        update_fields.append("nationality = %s")
+                        update_values.append(nova_nacionalidade)
+                    
+                    if update_fields:
+                        query = f'UPDATE drivers SET {", ".join(update_fields)} WHERE "driverId" = %s'
+                        update_values.append(id_piloto)
+                        
+                        if executar_comando_sql(conn, query, tuple(update_values)):
+                            st.success(f"Dados do piloto {piloto_selecionado_nome} atualizados com sucesso!")
+                            st.rerun()
                     else:
-                        st.warning("O campo de nova nacionalidade não pode estar vazio.")
+                        st.info("Nenhum dado foi alterado.")
+
         except Exception as e:
             st.error(f"Não foi possível carregar os pilotos para atualização: {e}")
 
