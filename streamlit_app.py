@@ -12,7 +12,7 @@ F1_PALETTE = ["#ff0800", "#7F7F7F", "#6b0000", "#B1B1B8", "#c52929", "#FFFFFF", 
 F1_RED = F1_PALETTE[0]
 F1_BLACK = F1_PALETTE[2]
 F1_GREY = F1_PALETTE[1]
-F1_WHITE = F1_PALETTE[4]
+F1_WHITE = F1_PALETTE[5]
 
 @st.cache_resource
 def conectar_db():
@@ -373,7 +373,7 @@ def render_analise_pilotos(data):
     grid_final_piloto = grid_final_piloto[(grid_final_piloto['grid'] > 0) & (grid_final_piloto['position'] > 0)]
     fig_grid_final = px.scatter(grid_final_piloto, x='grid', y='position',
                                 labels={'grid': 'Grid de Largada', 'position': 'Posição Final'},
-                                trendline='ols', trendline_color_override=[F1_WHITE],
+                                trendline='ols', trendline_color_override=F1_WHITE,
                                 color_discrete_sequence=[F1_RED],
                                 title=f"Correlação entre largar e chegar ({len(grid_final_piloto)} corridas)")
     st.plotly_chart(fig_grid_final, use_container_width=True)
