@@ -385,12 +385,14 @@ def render_pagina_gerenciamento(conn):
                     st.success(f"Piloto {piloto_del} deletado com sucesso!")
 def main():
     with st.sidebar:
-        st.image("https://logowik.com/content/uploads/images/f1-new-2022-formula-1-logo2827.jpg", width=250)
+        st.image("f1_logo.png", width=300)
         app_page = option_menu(
             menu_title='F1 Super Analytics',
             options=['Visão Geral', 'Análise de Pilotos', 'Análise de Construtores', 'Análise de Circuitos', 'H2H', 'Hall da Fama', 'Gerenciamento (CRUD)'],
             icons=['trophy-fill', 'person-badge', 'tools', 'signpost-split', 'people-fill', 'award-fill', 'pencil-square'],
-            menu_icon='speed', default_index=0,
+            menu_icon='speed',
+            default_index=0,
+            key='main_menu',
             styles={"nav-link-selected": {"background-color": F1_RED}}
         )
     
@@ -412,6 +414,7 @@ def main():
             'Análise de Circuitos': render_analise_circuitos,
             'H2H': render_h2h,
             'Hall da Fama': render_hall_da_fama
+            'CRUD': render_pagina_gerenciamento
         }
         page_function = page_map.get(app_page)
         if page_function:
