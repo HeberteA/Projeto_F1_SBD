@@ -42,6 +42,8 @@ def executar_comando_sql(conn, comando, params=None):
 
 @st.cache_data(ttl=60)
 def carregar_todos_os_dados(_conn):
+    st.info("Carregando e preparando dados do banco de dados...")
+    
     queries = {
         'races': 'select * from races', 'results': 'select * from results',
         'drivers': 'select * from drivers', 'constructors': 'select * from constructors',
@@ -61,28 +63,39 @@ def carregar_todos_os_dados(_conn):
             }
             df.rename(columns=rename_map, inplace=True)
             data[name] = df
-
+        
+        for df_name in data:
+            data[df_name].replace('\\N', pd.NA, inplace=True)
+        
         data['drivers']['driver_name'] = data['drivers']['forename'] + ' ' + data['drivers']['surname']
+        
         numeric_cols = {
             'races': ['year', 'round'],
-            'results': ['points', 'position', 'grid', 'rank'], 
+            'results': ['points', 'position', 'grid', 'rank'],
             'pit_stops': ['milliseconds'],
             'driver_standings': ['points', 'position'],
-            'constructor_standings': ['points', 'position'] 
+            'constructor_standings': ['points', 'position']
         }
+
         for df_name, cols in numeric_cols.items():
-            for col in cols:
-                data[df_name][col] = pd.to_numeric(data[df_name][col], errors='coerce')
-        data['pit_stops']['duration'] = data['pit_stops']['milliseconds'] / 1000
+            if df_name in data:
+                for col in cols:
+                    data[df_name][col] = pd.to_numeric(data[df_name][col], errors='coerce')
+
+        if 'pit_stops' in data:
+            data['pit_stops']['duration'] = data['pit_stops']['milliseconds'] / 1000
         
-        data['results_full'] = data['results'].merge(data['races'], on='raceId')\
-                                              .merge(data['drivers'], on='driverId')\
-                                              .merge(data['constructors'], on='constructorId')\
-                                              .merge(data['status'], on='statusId')
+        if all(k in data for k in ['results', 'races', 'drivers', 'constructors', 'status']):
+            data['results_full'] = data['results'].merge(data['races'], on='raceId')\
+                                                  .merge(data['drivers'], on='driverId')\
+                                                  .merge(data['constructors'], on='constructorId')\
+                                                  .merge(data['status'], on='statusId')
         
+        st.success("Dados carregados com sucesso!")
         return data
+        
     except Exception as e:
-        st.error(f"Erro ao consultar dados: {e}. Verifique nomes de tabelas/colunas.")
+        st.error(f"Erro ao carregar ou processar os dados: {e}. Verifique nomes de tabelas/colunas.")
         return None
 
 
