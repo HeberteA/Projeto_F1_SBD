@@ -64,6 +64,7 @@ def carregar_todos_os_dados(_conn):
 
         data['drivers']['driver_name'] = data['drivers']['forename'] + ' ' + data['drivers']['surname']
         numeric_cols = {
+            'races': ['year', 'round']
             'results': ['points', 'position', 'grid', 'rank'], 
             'pit_stops': ['milliseconds'],
             'driver_standings': ['points', 'position'],
