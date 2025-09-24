@@ -871,7 +871,6 @@ def render_pagina_gerenciamento(conn):
                         df['surname'].str.lower().contains(search_term) |
                         df['code'].str.lower().contains(search_term, na=False)
                     ]
-
             elif tabela_selecionada == "Equipes":
                 df = pd.read_sql_query('SELECT "constructorId", "constructorRef", name, nationality FROM constructors ORDER BY name', conn)
                 search_term = st.text_input("Buscar por nome ou nacionalidade...", key="search_equipes")
@@ -881,7 +880,6 @@ def render_pagina_gerenciamento(conn):
                         df['name'].str.lower().contains(search_term) |
                         df['nationality'].str.lower().contains(search_term)
                     ]
-            
             elif tabela_selecionada == "Circuitos":
                 df = pd.read_sql_query('SELECT "circuitId", "circuitRef", name, location, country FROM circuits ORDER BY name', conn)
                 search_term = st.text_input("Buscar por nome, local ou país...", key="search_circuitos")
@@ -892,9 +890,7 @@ def render_pagina_gerenciamento(conn):
                         df['location'].str.lower().contains(search_term) |
                         df['country'].str.lower().contains(search_term)
                     ]
-            
             st.dataframe(df, use_container_width=True, hide_index=True)
-
         except Exception as e:
             st.error(f"Não foi possível consultar os dados: {e}")
 
@@ -904,7 +900,6 @@ def render_pagina_gerenciamento(conn):
             pilotos_df_update = pd.read_sql_query('SELECT "driverId", forename || \' \' || surname as driver_name, code, number, nationality FROM drivers ORDER BY surname', conn)
             pilotos_df_update.dropna(subset=['driverId', 'driver_name'], inplace=True)
             
-            # --- LÓGICA DE BUSCA CORRIGIDA ---
             search_update = st.text_input("Buscar piloto para atualizar...", placeholder="Digite o nome e pressione Enter", key="search_update")
             if search_update:
                 options_pilotos = pilotos_df_update[pilotos_df_update['driver_name'].str.contains(search_update, case=False)]
@@ -916,13 +911,36 @@ def render_pagina_gerenciamento(conn):
             if piloto_selecionado_nome:
                 piloto_info = pilotos_df_update[pilotos_df_update['driver_name'] == piloto_selecionado_nome].iloc[0]
                 id_piloto = int(piloto_info['driverId'])
+
                 st.write("---")
                 novo_codigo = st.text_input("Código (3 letras)", value=piloto_info['code'] or "", max_chars=3, key=f"code_{id_piloto}")
                 novo_numero = st.number_input("Número do Piloto", value=int(piloto_info['number']) if pd.notna(piloto_info['number']) else None, min_value=0, max_value=99, step=1, key=f"number_{id_piloto}")
                 nova_nacionalidade = st.text_input("Nacionalidade", value=piloto_info['nationality'] or "", key=f"nat_{id_piloto}")
+                
                 if st.button("Salvar Alterações"):
-                    st.success(f"Dados do piloto {piloto_selecionado_nome} atualizados com sucesso!")
-                    st.rerun()
+                    update_fields = []
+                    update_values = []
+                    
+                    if novo_codigo and novo_codigo.upper() != (piloto_info['code'] or ''):
+                        update_fields.append("code = %s")
+                        update_values.append(novo_codigo.upper())
+                    
+                    if novo_numero is not None and (pd.isna(piloto_info['number']) or novo_numero != int(piloto_info['number'])):
+                        update_fields.append("number = %s")
+                        update_values.append(novo_numero)
+                    
+                    if nova_nacionalidade and nova_nacionalidade != (piloto_info['nationality'] or ''):
+                        update_fields.append("nationality = %s")
+                        update_values.append(nova_nacionalidade)
+                    
+                    if update_fields:
+                        query = f'UPDATE drivers SET {", ".join(update_fields)} WHERE "driverId" = %s'
+                        update_values.append(id_piloto)
+                        if executar_comando_sql(conn, query, tuple(update_values)):
+                            st.success(f"Dados do piloto {piloto_selecionado_nome} atualizados com sucesso!")
+                            st.rerun()
+                    else:
+                        st.info("Nenhum dado foi alterado.")
 
         except Exception as e:
             st.error(f"Não foi possível carregar os pilotos para atualização: {e}")
