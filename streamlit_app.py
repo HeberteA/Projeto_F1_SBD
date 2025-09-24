@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from streamlit_option_menu import option_menu
 import psycopg2
+from datetime import date
 
 
 st.set_page_config(layout="wide", page_title="F1 Super Analytics Pro", page_icon="f1.png")
