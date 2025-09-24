@@ -16,24 +16,13 @@ F1_GREY = F1_PALETTE[2]
 # --- FUNÇÕES DE BANCO DE DADOS (CORRIGIDO PARA SUPABASE) ---
 @st.cache_resource
 def conectar_db():
-    """
-    Função de conexão aprimorada para funcionar com o formato de URL do Supabase.
-    Nos secrets do Streamlit, sua string de conexão deve estar sob a chave "uri" ou "url".
-    Ex: [database]
-         uri="postgresql://..."
-    """
     try:
-        # O Supabase geralmente fornece uma única string de conexão (URI/URL).
-        # Este código verifica as chaves mais comuns nos secrets.
         db_secrets = st.secrets["database"]
         conn_str = db_secrets.get("uri") or db_secrets.get("url") or db_secrets.get("connection_string")
-        
         if conn_str:
             return psycopg2.connect(conn_str)
         else:
-            # Fallback para o método de chaves individuais, se a URI não for fornecida.
             return psycopg2.connect(**db_secrets)
-            
     except Exception as e:
         st.error(f"Erro CRÍTICO de conexão com o banco de dados: {e}")
         return None
@@ -55,7 +44,6 @@ def executar_comando_sql(comando, params=None):
         with conn.cursor() as cur:
             cur.execute(comando, params)
             conn.commit()
-        # Limpa o cache para que as mudanças no CRUD sejam refletidas imediatamente
         st.cache_data.clear()
         st.cache_resource.clear()
         return True
@@ -64,17 +52,15 @@ def executar_comando_sql(comando, params=None):
         st.error(f"Erro ao executar comando SQL: {e}")
         return False
 
-# --- CARREGAMENTO CENTRALIZADO DE DADOS (ESTRATÉGIA DO PROTÓTIPO) ---
+# --- CARREGAMENTO CENTRALIZADO DE DADOS (CORRIGIDO) ---
 @st.cache_data(ttl=3600)
 def carregar_todos_os_dados():
+    # Removidas as queries para tabelas que não existem
     queries = {
         "tbl_corridas": 'SELECT id_corrida, ano, rodada, nome_gp, id_circuito_fk FROM tbl_corridas',
         "tbl_resultados": 'SELECT posicao_final, pontos, posicao_grid, id_corrida_fk, id_piloto_fk, id_construtor_fk, id_status_fk FROM tbl_resultados',
         "tbl_pilotos": 'SELECT id_piloto, ref_piloto, numero, codigo, nome AS nome_piloto, sobrenome, data_nascimento, nacionalidade FROM tbl_pilotos',
         "tbl_construtores": 'SELECT id_construtor, ref_construtor, nome AS nome_construtor, nacionalidade AS nacionalidade_construtor FROM tbl_construtores',
-        "tbl_classificacao_pilotos": 'SELECT id_corrida_fk AS "raceId", id_piloto_fk AS "driverId", pontos AS points, posicao AS position FROM tbl_classificacao_pilotos',
-        "tbl_classificacao_construtores": 'SELECT id_corrida_fk AS "raceId", id_construtor_fk AS "constructorId", pontos AS points, posicao AS position FROM tbl_classificacao_construtores',
-        "tbl_qualificacao": 'SELECT id_corrida_fk AS "raceId", id_piloto_fk AS "driverId", id_construtor_fk AS "constructorId", posicao AS quali_position FROM tbl_qualificacao',
         "tbl_circuitos": 'SELECT id_circuito, nome AS nome_circuito, cidade, pais FROM tbl_circuitos',
         "tbl_status_resultado": 'SELECT id_status, status FROM tbl_status_resultado'
     }
@@ -83,39 +69,42 @@ def carregar_todos_os_dados():
         data["tbl_pilotos"]['nome_completo_piloto'] = data["tbl_pilotos"]['nome_piloto'] + ' ' + data["tbl_pilotos"]['sobrenome']
     return data
 
-# --- RENDERIZAÇÃO DAS PÁGINAS (DO PROTÓTIPO) ---
+# --- RENDERIZAÇÃO DAS PÁGINAS (LÓGICA DE CÁLCULO AJUSTADA) ---
 
 def render_pagina_visao_geral(data):
     st.title("🏁 Visão Geral da Temporada de F1")
-    races, drivers, constructors, driver_standings, constructor_standings = (
-        data['tbl_corridas'], data['tbl_pilotos'], data['tbl_construtores'],
-        data['tbl_classificacao_pilotos'], data['tbl_classificacao_construtores']
+    races, drivers, constructors, results = (
+        data['tbl_corridas'], data['tbl_pilotos'], data['tbl_construtores'], data['tbl_resultados']
     )
     
     anos_disponiveis = sorted(races[races['ano'] <= 2024]['ano'].unique(), reverse=True)
     ano_selecionado = st.selectbox("Selecione a Temporada", anos_disponiveis, key="visao_geral_ano")
 
+    # Filtra corridas e resultados para o ano selecionado
     races_ano = races[races['ano'] == ano_selecionado]
     if races_ano.empty:
         st.warning(f"Não há dados de corrida para a temporada de {ano_selecionado}.")
         return
 
+    results_ano = results.merge(races_ano, left_on='id_corrida_fk', right_on='id_corrida')
+
+    # Calcula a classificação dos pilotos
+    driver_standings_final = results_ano.groupby('id_piloto_fk')['pontos'].sum().reset_index()
+    driver_standings_final = driver_standings_final.sort_values(by='pontos', ascending=False).reset_index(drop=True)
+    driver_standings_final['position'] = driver_standings_final.index + 1
+    
+    # Calcula a classificação dos construtores
+    constructor_standings_final = results_ano.groupby('id_construtor_fk')['pontos'].sum().reset_index()
+    constructor_standings_final = constructor_standings_final.sort_values(by='pontos', ascending=False).reset_index(drop=True)
+    constructor_standings_final['position'] = constructor_standings_final.index + 1
+
     st.header(f"Resumo da Temporada de {ano_selecionado}")
-    # Achar a última corrida do ano que tenha classificação
-    standings_ano = driver_standings.merge(races_ano, left_on='raceId', right_on='id_corrida')
-    if standings_ano.empty:
-        st.warning(f"Não há dados de classificação para {ano_selecionado}.")
-        return
-
-    ultima_corrida_id = standings_ano.sort_values(by='rodada', ascending=False).iloc[0]['id_corrida']
-
-    driver_standings_final = driver_standings[driver_standings['raceId'] == ultima_corrida_id]
+    
     campeao_piloto_info = driver_standings_final[driver_standings_final['position'] == 1]
-    nome_campeao_piloto = drivers[drivers['id_piloto'] == campeao_piloto_info['driverId'].iloc[0]]['nome_completo_piloto'].iloc[0] if not campeao_piloto_info.empty else "N/A"
-
-    constructor_standings_final = constructor_standings[constructor_standings['raceId'] == ultima_corrida_id]
+    nome_campeao_piloto = drivers[drivers['id_piloto'] == campeao_piloto_info['id_piloto_fk'].iloc[0]]['nome_completo_piloto'].iloc[0] if not campeao_piloto_info.empty else "N/A"
+    
     campeao_constr_info = constructor_standings_final[constructor_standings_final['position'] == 1]
-    nome_campeao_constr = constructors[constructors['id_construtor'] == campeao_constr_info['constructorId'].iloc[0]]['nome_construtor'].iloc[0] if not campeao_constr_info.empty else "N/A"
+    nome_campeao_constr = constructors[constructors['id_construtor'] == campeao_constr_info['id_construtor_fk'].iloc[0]]['nome_construtor'].iloc[0] if not campeao_constr_info.empty else "N/A"
 
     col1, col2, col3 = st.columns(3)
     col1.metric("🏆 Campeão de Pilotos", nome_campeao_piloto)
@@ -126,32 +115,33 @@ def render_pagina_visao_geral(data):
     col_graf1, col_graf2 = st.columns(2)
     with col_graf1:
         st.subheader("🏆 Classificação Final de Pilotos (Top 10)")
-        classificacao_pilotos = driver_standings_final.merge(drivers, left_on='driverId', right_on='id_piloto').sort_values(by='position').head(10)
-        fig = px.bar(classificacao_pilotos, x='points', y='nome_completo_piloto', orientation='h', text='points', color_discrete_sequence=F1_PALETTE)
+        classificacao_pilotos = driver_standings_final.merge(drivers, left_on='id_piloto_fk', right_on='id_piloto').head(10)
+        fig = px.bar(classificacao_pilotos, x='pontos', y='nome_completo_piloto', orientation='h', text='pontos', color_discrete_sequence=F1_PALETTE)
         fig.update_layout(yaxis={'categoryorder':'total ascending'}, xaxis_title="Pontos", yaxis_title="Piloto", showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
 
     with col_graf2:
         st.subheader("🏎️ Classificação Final de Construtores")
-        classificacao_constr = constructor_standings_final.merge(constructors, left_on='constructorId', right_on='id_construtor').sort_values(by='position')
-        fig = px.bar(classificacao_constr, x='points', y='nome_construtor', orientation='h', text='points', color_discrete_sequence=F1_PALETTE)
+        classificacao_constr = constructor_standings_final.merge(constructors, left_on='id_construtor_fk', right_on='id_construtor')
+        fig = px.bar(classificacao_constr, x='pontos', y='nome_construtor', orientation='h', text='pontos', color_discrete_sequence=F1_PALETTE)
         fig.update_layout(yaxis={'categoryorder':'total ascending'}, xaxis_title="Pontos", yaxis_title="Construtor", showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
 
 def render_pagina_analise_pilotos(data):
     st.title("🧑‍🚀 Análise Detalhada de Pilotos")
-    drivers, results, qualifying, races = data['tbl_pilotos'], data['tbl_resultados'], data['tbl_qualificacao'], data['tbl_corridas']
+    drivers, results, races = data['tbl_pilotos'], data['tbl_resultados'], data['tbl_corridas']
     piloto_selecionado = st.selectbox("Selecione um Piloto", options=drivers.sort_values('sobrenome')['nome_completo_piloto'], index=None, placeholder="Buscar piloto...")
     if piloto_selecionado:
         driver_id = drivers[drivers['nome_completo_piloto'] == piloto_selecionado]['id_piloto'].iloc[0]
         resultados_piloto = results[results['id_piloto_fk'] == driver_id]
-        poles_piloto = qualifying[(qualifying['driverId'] == driver_id) & (qualifying['quali_position'] == 1)]
+        # Pole positions calculadas a partir de 'posicao_grid'
+        poles_piloto = resultados_piloto[resultados_piloto['posicao_grid'] == 1].shape[0]
         
         col1, col2, col3, col4, col5 = st.columns(5)
         col1.metric("🏁 Corridas", resultados_piloto['id_corrida_fk'].nunique())
         col2.metric("🏆 Vitórias", resultados_piloto[resultados_piloto['posicao_final'] == 1].shape[0])
         col3.metric("🍾 Pódios", resultados_piloto[resultados_piloto['posicao_final'].isin([1, 2, 3])].shape[0])
-        col4.metric("⏱️ Pole Positions", poles_piloto.shape[0])
+        col4.metric("⏱️ Pole Positions", poles_piloto)
         col5.metric("💯 Total de Pontos", f"{resultados_piloto['pontos'].sum():,.0f}")
         st.divider()
 
@@ -180,16 +170,17 @@ def render_pagina_analise_pilotos(data):
 
 def render_pagina_analise_construtores(data):
     st.title("🔧 Análise Detalhada de Construtores")
-    constructors, results, status, constructor_standings, races = data['tbl_construtores'], data['tbl_resultados'], data['tbl_status_resultado'], data['tbl_classificacao_construtores'], data['tbl_corridas']
+    constructors, results, status, races = data['tbl_construtores'], data['tbl_resultados'], data['tbl_status_resultado'], data['tbl_corridas']
     construtor_selecionado = st.selectbox("Selecione um Construtor", options=constructors.sort_values('nome_construtor')['nome_construtor'], index=None, placeholder="Buscar construtor...")
     if construtor_selecionado:
         constructor_id = constructors[constructors['nome_construtor'] == construtor_selecionado]['id_construtor'].iloc[0]
         resultados_construtor = results[results['id_construtor_fk'] == constructor_id]
         
         # Lógica para calcular campeonatos
-        standings_com_ano = constructor_standings.merge(races, left_on='raceId', right_on='id_corrida')
-        standings_finais_ano = standings_com_ano.loc[standings_com_ano.groupby('ano')['rodada'].idxmax()]
-        campeonatos = standings_finais_ano[(standings_finais_ano['constructorId'] == constructor_id) & (standings_finais_ano['position'] == 1)].shape[0]
+        results_com_ano = results.merge(races, left_on='id_corrida_fk', right_on='id_corrida')
+        pontos_por_ano_construtor = results_com_ano.groupby(['ano', 'id_construtor_fk'])['pontos'].sum().reset_index()
+        campeoes_por_ano = pontos_por_ano_construtor.loc[pontos_por_ano_construtor.groupby('ano')['pontos'].idxmax()]
+        campeonatos = campeoes_por_ano[campeoes_por_ano['id_construtor_fk'] == constructor_id].shape[0]
 
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("🏁 Corridas", resultados_construtor['id_corrida_fk'].nunique())
@@ -210,8 +201,8 @@ def render_pagina_analise_construtores(data):
             st.plotly_chart(fig, use_container_width=True)
         with col_graf2:
             st.subheader("Evolução (Pontos por Temporada)")
-            resultados_com_ano = resultados_construtor.merge(races, left_on='id_corrida_fk', right_on='id_corrida')
-            pontos_por_ano = resultados_com_ano.groupby('ano')['pontos'].sum().reset_index()
+            resultados_com_ano_equipe = resultados_construtor.merge(races, left_on='id_corrida_fk', right_on='id_corrida')
+            pontos_por_ano = resultados_com_ano_equipe.groupby('ano')['pontos'].sum().reset_index()
             fig_evolucao = px.bar(pontos_por_ano, x='ano', y='pontos', color_discrete_sequence=[F1_GREY])
             fig_evolucao.update_layout(xaxis_title="Temporada", yaxis_title="Pontos Acumulados", showlegend=False)
             st.plotly_chart(fig_evolucao, use_container_width=True)
@@ -324,7 +315,6 @@ def render_pagina_crud(data):
 
 # --- ESTRUTURA PRINCIPAL DO APP ---
 def main():
-    # SIDEBAR NO ESTILO DO PROTÓTIPO
     with st.sidebar:
         st.image("f1_logo.png", width=250)
         app_page = option_menu(
@@ -342,7 +332,6 @@ def main():
         )
     
     if conn is None:
-        # A mensagem de erro já é exibida pela função conectar_db()
         st.warning("Por favor, verifique as configurações de conexão no secrets do Streamlit.")
         return
         
@@ -351,7 +340,6 @@ def main():
         st.error("Falha ao carregar um ou mais conjuntos de dados. Verifique a conexão e os nomes das tabelas no banco.")
         return
 
-    # Mapeamento das páginas para as funções de renderização
     page_map = {
         'Visão Geral': render_pagina_visao_geral,
         'Análise de Pilotos': render_pagina_analise_pilotos,
