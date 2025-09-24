@@ -6,7 +6,7 @@ from streamlit_option_menu import option_menu
 
 st.set_page_config(layout="wide", page_title="F1 Super Analytics", page_icon="f1.png")
 
-F1_PALETTE = ["#E10600", "#15151E", "#7F7F7F", "#B1B1B8", "#FFFFFF", "#FF8700", "#00A000"]
+F1_PALETTE = ["#E10600", "#15151E", "#7F7F7F", "#B1B1B8", "#FF8700", "#00A000", "#FFFFFF"]
 F1_RED = F1_PALETTE[0]
 F1_BLACK = F1_PALETTE[1]
 F1_GREY = F1_PALETTE[2]
@@ -29,14 +29,13 @@ conn = conectar_db()
 def consultar_dados_df(query, params=None):
     if not conn: return pd.DataFrame()
     try:
-        with conn.cursor() as cur:
-            return pd.read_sql_query(query, conn, params=params)
+        return pd.read_sql_query(query, conn, params=params)
     except Exception as e:
         st.warning(f"Erro ao consultar dados: {e}")
         return pd.DataFrame()
 
 def executar_comando_sql(comando, params=None):
-    if not conn: return None
+    if not conn: return False
     try:
         with conn.cursor() as cur:
             cur.execute(comando, params)
@@ -47,15 +46,15 @@ def executar_comando_sql(comando, params=None):
     except Exception as e:
         conn.rollback()
         st.error(f"Erro ao executar comando SQL: {e}")
-        return None
+        return False
 
 @st.cache_data(ttl=3600)
 def carregar_todos_os_dados():
     queries = {
         "tbl_corridas": 'SELECT id_corrida, ano, rodada, nome_gp, id_circuito_fk FROM tbl_corridas',
         "tbl_resultados": 'SELECT posicao_final, pontos, posicao_grid, id_corrida_fk, id_piloto_fk, id_construtor_fk, id_status_fk FROM tbl_resultados',
-        "tbl_pilotos": 'SELECT id_piloto, nome as nome_piloto, sobrenome FROM tbl_pilotos',
-        "tbl_construtores": 'SELECT id_construtor, nome as nome_construtor, nacionalidade as nacionalidade_construtor FROM tbl_construtores',
+        "tbl_pilotos": 'SELECT id_piloto, ref_piloto, numero, codigo, nome as nome_piloto, sobrenome, data_nascimento, nacionalidade FROM tbl_pilotos',
+        "tbl_construtores": 'SELECT id_construtor, ref_construtor, nome as nome_construtor, nacionalidade as nacionalidade_construtor FROM tbl_construtores',
         "driver_standings": 'SELECT "raceId", "driverId", points, position, wins FROM driver_standings',
         "constructor_standings": 'SELECT "raceId", "constructorId", points, position, wins FROM constructor_standings',
         "qualifying": 'SELECT "raceId", "driverId", "constructorId", position as quali_position FROM qualifying',
@@ -63,7 +62,7 @@ def carregar_todos_os_dados():
         "tbl_status_resultado": 'SELECT id_status, status FROM tbl_status_resultado'
     }
     data = {name: consultar_dados_df(query) for name, query in queries.items()}
-    if not data["tbl_pilotos"].empty:
+    if not data.get("tbl_pilotos", pd.DataFrame()).empty:
         data["tbl_pilotos"]['nome_completo_piloto'] = data["tbl_pilotos"]['nome_piloto'] + ' ' + data["tbl_pilotos"]['sobrenome']
     return data
 
@@ -101,22 +100,22 @@ def render_pagina_visao_geral(data):
 
     col_graf1, col_graf2 = st.columns(2)
     with col_graf1:
-        st.subheader("🏆 Classificação Final de Pilotos")
+        st.subheader("🏆 Classificação Final de Pilotos (Top 10)")
         classificacao_pilotos = driver_standings_final.merge(drivers, left_on='driverId', right_on='id_piloto').sort_values(by='position').head(10)
-        fig = px.bar(classificacao_pilotos, x='points', y='nome_completo_piloto', orientation='h', text='points', color_discrete_sequence=[F1_RED])
-        fig.update_layout(yaxis={'categoryorder':'total ascending'}, xaxis_title="Pontos", yaxis_title="Piloto")
+        fig = px.bar(classificacao_pilotos, x='points', y='nome_completo_piloto', orientation='h', text='points', color_discrete_sequence=F1_PALETTE)
+        fig.update_layout(yaxis={'categoryorder':'total ascending'}, xaxis_title="Pontos", yaxis_title="Piloto", showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
 
     with col_graf2:
         st.subheader("🏎️ Classificação Final de Construtores")
         classificacao_constr = constructor_standings_final.merge(constructors, left_on='constructorId', right_on='id_construtor').sort_values(by='position')
-        fig = px.bar(classificacao_constr, x='points', y='nome_construtor', orientation='h', text='points', color_discrete_sequence=[F1_RED])
-        fig.update_layout(yaxis={'categoryorder':'total ascending'}, xaxis_title="Pontos", yaxis_title="Construtor")
+        fig = px.bar(classificacao_constr, x='points', y='nome_construtor', orientation='h', text='points', color_discrete_sequence=F1_PALETTE)
+        fig.update_layout(yaxis={'categoryorder':'total ascending'}, xaxis_title="Pontos", yaxis_title="Construtor", showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
 
 def render_pagina_analise_pilotos(data):
     st.title("🧑‍🚀 Análise Detalhada de Pilotos")
-    drivers, results, qualifying = data['tbl_pilotos'], data['tbl_resultados'], data['qualifying']
+    drivers, results, qualifying, races = data['tbl_pilotos'], data['tbl_resultados'], data['qualifying'], data['tbl_corridas']
     piloto_selecionado = st.selectbox("Selecione um Piloto", options=drivers.sort_values('sobrenome')['nome_completo_piloto'], index=None, placeholder="Buscar piloto...")
     if piloto_selecionado:
         driver_id = drivers[drivers['nome_completo_piloto'] == piloto_selecionado]['id_piloto'].iloc[0]
@@ -137,25 +136,32 @@ def render_pagina_analise_pilotos(data):
             grid_vs_final = resultados_piloto[['posicao_grid', 'posicao_final']]
             grid_vs_final = grid_vs_final[(grid_vs_final['posicao_grid'] > 0) & (grid_vs_final['posicao_final'] > 0)]
             fig = px.scatter(grid_vs_final, x='posicao_grid', y='posicao_final', labels={'posicao_grid': 'Grid', 'posicao_final': 'Final'},
-                             trendline='ols', trendline_color_override=F1_RED)
+                             trendline='ols', trendline_color_override=F1_RED, color_discrete_sequence=F1_PALETTE[1:])
             st.plotly_chart(fig, use_container_width=True)
         with col_graf2:
-            st.subheader("Distribuição de Resultados")
-            contagem_posicao = resultados_piloto['posicao_final'].value_counts().reset_index().sort_values('posicao_final')
-            fig = px.bar(contagem_posicao.head(10), x='posicao_final', y='count', labels={'posicao_final': 'Posição', 'count': 'Nº de Vezes'},
+            st.subheader("Distribuição de Resultados (Top 10 Posições)")
+            contagem_posicao = resultados_piloto['posicao_final'].value_counts().reset_index().sort_values('posicao_final').head(10)
+            fig = px.bar(contagem_posicao, x='posicao_final', y='count', labels={'posicao_final': 'Posição', 'count': 'Nº de Vezes'},
                          text='count', color_discrete_sequence=[F1_RED])
             fig.update_layout(xaxis_type='category')
             st.plotly_chart(fig, use_container_width=True)
+        
+        st.subheader("Evolução na Carreira (Pontos por Temporada)")
+        resultados_com_ano = resultados_piloto.merge(races, left_on='id_corrida_fk', right_on='id_corrida')
+        pontos_por_ano = resultados_com_ano.groupby('ano')['pontos'].sum().reset_index()
+        fig_evolucao = px.line(pontos_por_ano, x='ano', y='pontos', markers=True, color_discrete_sequence=[F1_RED])
+        fig_evolucao.update_layout(xaxis_title="Temporada", yaxis_title="Pontos Acumulados")
+        st.plotly_chart(fig_evolucao, use_container_width=True)
 
 def render_pagina_analise_construtores(data):
     st.title("🔧 Análise Detalhada de Construtores")
-    constructors, results, status, constructor_standings = data['tbl_construtores'], data['tbl_resultados'], data['tbl_status_resultado'], data['constructor_standings']
+    constructors, results, status, constructor_standings, races = data['tbl_construtores'], data['tbl_resultados'], data['tbl_status_resultado'], data['constructor_standings'], data['tbl_corridas']
     construtor_selecionado = st.selectbox("Selecione um Construtor", options=constructors.sort_values('nome_construtor')['nome_construtor'], index=None, placeholder="Buscar construtor...")
     if construtor_selecionado:
         constructor_id = constructors[constructors['nome_construtor'] == construtor_selecionado]['id_construtor'].iloc[0]
         resultados_construtor = results[results['id_construtor_fk'] == constructor_id]
         
-        campeonatos = constructor_standings[(constructor_standings['constructorId'] == constructor_id) & (constructor_standings['position'] == 1)].shape[0]
+        campeonatos = constructor_standings[(constructor_standings['constructorId'] == constructor_id) & (constructor_standings['position'] == 1)].merge(races, left_on='raceId', right_on='id_corrida')['ano'].nunique()
 
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("🏁 Corridas", resultados_construtor['id_corrida_fk'].nunique())
@@ -175,11 +181,12 @@ def render_pagina_analise_construtores(data):
                          color_discrete_map={'Finalizou': 'green', 'Não Finalizou': F1_RED})
             st.plotly_chart(fig, use_container_width=True)
         with col_graf2:
-            st.subheader("Distribuição de Resultados")
-            posicoes = resultados_construtor[resultados_construtor['posicao_final'] > 0]['posicao_final'].value_counts().reset_index().sort_values('posicao_final').head(15)
-            fig = px.bar(posicoes, x='posicao_final', y='count', color_discrete_sequence=[F1_RED], labels={'posicao_final': 'Posição', 'count': 'Nº de Vezes'})
-            fig.update_layout(xaxis_type='category')
-            st.plotly_chart(fig, use_container_width=True)
+            st.subheader("Evolução (Pontos por Temporada)")
+            resultados_com_ano = resultados_construtor.merge(races, left_on='id_corrida_fk', right_on='id_corrida')
+            pontos_por_ano = resultados_com_ano.groupby('ano')['pontos'].sum().reset_index()
+            fig_evolucao = px.bar(pontos_por_ano, x='ano', y='pontos', color_discrete_sequence=F1_PALETTE)
+            fig_evolucao.update_layout(xaxis_title="Temporada", yaxis_title="Pontos Acumulados", showlegend=False)
+            st.plotly_chart(fig_evolucao, use_container_width=True)
 
 def render_pagina_analise_circuitos(data):
     st.title("🛣️ Análise de Circuitos")
@@ -191,14 +198,16 @@ def render_pagina_analise_circuitos(data):
         resultados_circuito = results[results['id_corrida_fk'].isin(corridas_no_circuito['id_corrida'])]
         
         vencedores = resultados_circuito[resultados_circuito['posicao_final'] == 1].merge(drivers, left_on='id_piloto_fk', right_on='id_piloto')
-        maior_vencedor = vencedores['nome_completo_piloto'].value_counts().idxmax() if not vencedores.empty else "N/A"
-        
-        st.metric("🏆 Maior Vencedor no Circuito", maior_vencedor)
+        maiores_vencedores = vencedores['nome_completo_piloto'].value_counts().reset_index().head(5)
+        maiores_vencedores.columns = ['Piloto', 'Vitórias']
+
+        st.metric("🏁 Total de Corridas Realizadas", corridas_no_circuito['id_corrida'].nunique())
         st.divider()
 
-        st.subheader(f"Todos os Vencedores em {circuito_selecionado}")
-        vencedores_por_ano = vencedores.merge(corridas_no_circuito, left_on='id_corrida_fk', right_on='id_corrida')[['ano', 'nome_completo_piloto']]
-        st.dataframe(vencedores_por_ano.sort_values('ano', ascending=False), use_container_width=True)
+        st.subheader(f"Reis da Pista: Maiores Vencedores em {circuito_selecionado}")
+        fig = px.bar(maiores_vencedores, x='Vitórias', y='Piloto', orientation='h', text='Vitórias', color_discrete_sequence=F1_PALETTE)
+        fig.update_layout(yaxis={'categoryorder':'total ascending'}, showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
 
 def render_pagina_h2h(data):
     st.title("⚔️ Head-to-Head de Pilotos")
@@ -217,24 +226,15 @@ def render_pagina_h2h(data):
         stats1 = results[results['id_piloto_fk'] == id1]
         stats2 = results[results['id_piloto_fk'] == id2]
 
-        vitorias1 = stats1[stats1['posicao_final'] == 1].shape[0]
-        vitorias2 = stats2[stats2['posicao_final'] == 1].shape[0]
-        podios1 = stats1[stats1['posicao_final'].isin([1,2,3])].shape[0]
-        podios2 = stats2[stats2['posicao_final'].isin([1,2,3])].shape[0]
-        pontos1 = stats1['pontos'].sum()
-        pontos2 = stats2['pontos'].sum()
+        fig = go.Figure()
+        fig.add_trace(go.Bar(name=piloto1, x=['Vitórias', 'Pódios', 'Pontos'], y=[stats1[stats1['posicao_final'] == 1].shape[0], stats1[stats1['posicao_final'].isin([1,2,3])].shape[0], stats1['pontos'].sum()], marker_color=F1_RED))
+        fig.add_trace(go.Bar(name=piloto2, x=['Vitórias', 'Pódios', 'Pontos'], y=[stats2[stats2['posicao_final'] == 1].shape[0], stats2[stats2['posicao_final'].isin([1,2,3])].shape[0], stats2['pontos'].sum()], marker_color=F1_GREY))
+        fig.update_layout(barmode='group', title_text='Estatísticas da Carreira', yaxis_title="Total")
+        st.plotly_chart(fig, use_container_width=True)
 
         corridas_juntos = stats1.merge(stats2, on='id_corrida_fk', suffixes=('_p1', '_p2'))
         vitorias_h2h_p1 = corridas_juntos[corridas_juntos['posicao_final_p1'] < corridas_juntos['posicao_final_p2']].shape[0]
         vitorias_h2h_p2 = corridas_juntos[corridas_juntos['posicao_final_p2'] < corridas_juntos['posicao_final_p1']].shape[0]
-
-        st.subheader(f"Comparativo: {piloto1} vs {piloto2}")
-        
-        fig = go.Figure()
-        fig.add_trace(go.Bar(name=piloto1, x=['Vitórias', 'Pódios', 'Pontos'], y=[vitorias1, podios1, pontos1], marker_color=F1_RED))
-        fig.add_trace(go.Bar(name=piloto2, x=['Vitórias', 'Pódios', 'Pontos'], y=[vitorias2, podios2, pontos2], marker_color=F1_GREY))
-        fig.update_layout(barmode='group', title_text='Estatísticas da Carreira')
-        st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("Resultados em Corridas Juntos")
         col_h2h1, col_h2h2, col_h2h3 = st.columns(3)
@@ -242,15 +242,65 @@ def render_pagina_h2h(data):
         col_h2h2.metric(f"Vantagem para {piloto1}", f"{vitorias_h2h_p1} vezes")
         col_h2h3.metric(f"Vantagem para {piloto2}", f"{vitorias_h2h_p2} vezes")
 
+def render_pagina_crud(data):
+    st.title("🔩 Gerenciamento de Dados (CRUD)")
+    drivers, constructors = data['tbl_pilotos'], data['tbl_construtores']
+
+    tab_read, tab_create, tab_update, tab_delete = st.tabs(["🔍 Consultar", "➕ Criar", "✏️ Atualizar", "❌ Deletar"])
+
+    with tab_read:
+        st.subheader("Consultar Dados")
+        tabela_selecionada = st.radio("Selecione a tabela para visualizar:", ("Pilotos", "Construtores"), horizontal=True)
+        if tabela_selecionada == "Pilotos":
+            st.dataframe(drivers, use_container_width=True)
+        else:
+            st.dataframe(constructors, use_container_width=True)
+
+    with tab_create:
+        st.subheader("Adicionar Novo Piloto")
+        with st.form("form_novo_piloto"):
+            ref = st.text_input("Referência (ex: verstappen)")
+            num = st.number_input("Número", min_value=1, max_value=99, value=None)
+            code = st.text_input("Código (3 letras, ex: VER)", max_chars=3)
+            fname = st.text_input("Nome")
+            sname = st.text_input("Sobrenome")
+            dob = st.date_input("Data de Nascimento")
+            nac = st.text_input("Nacionalidade")
+            if st.form_submit_button("Adicionar Piloto"):
+                query = "INSERT INTO tbl_pilotos (ref_piloto, numero, codigo, nome, sobrenome, data_nascimento, nacionalidade) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+                if executar_comando_sql(query, (ref, num, code.upper(), fname, sname, dob, nac)):
+                    st.success(f"Piloto {fname} {sname} adicionado com sucesso!")
+                    
+    with tab_update:
+        st.subheader("Atualizar Nacionalidade de um Construtor")
+        constr_list = constructors.sort_values('nome_construtor')['nome_construtor'].tolist()
+        constr_sel = st.selectbox("Selecione o Construtor", options=constr_list, index=None, placeholder="Selecione...")
+        if constr_sel:
+            id_constr = int(constructors[constructors['nome_construtor'] == constr_sel]['id_construtor'].iloc[0])
+            nova_nac = st.text_input("Digite a Nova Nacionalidade", key=f"nac_{id_constr}")
+            if st.button("Atualizar Nacionalidade"):
+                if executar_comando_sql("UPDATE tbl_construtores SET nacionalidade_construtor = %s WHERE id_construtor = %s", (nova_nac, id_constr)):
+                    st.success(f"Nacionalidade de '{constr_sel}' atualizada!")
+
+    with tab_delete:
+        st.subheader("Deletar um Piloto")
+        st.warning("A exclusão de um piloto é irreversível.", icon="⚠️")
+        piloto_del = st.selectbox("Selecione o Piloto a ser deletado", options=drivers.sort_values('sobrenome')['nome_completo_piloto'], index=None, placeholder="Selecione...")
+        if piloto_del and st.button(f"DELETAR {piloto_del}", type="primary"):
+            id_piloto_del = int(drivers[drivers['nome_completo_piloto'] == piloto_del]['id_piloto'].iloc[0])
+            if executar_comando_sql("DELETE FROM tbl_pilotos WHERE id_piloto = %s", (id_piloto_del,)):
+                st.success(f"Piloto '{piloto_del}' deletado com sucesso.")
+
 def main():
     with st.sidebar:
         st.image("f1_logo.png", width=300)
         app_page = option_menu(
             menu_title='F1 Super Analytics',
-            options=['Visão Geral', 'Análise de Pilotos', 'Análise de Construtores', 'Análise de Circuitos', 'H2H Pilotos'],
-            icons=['trophy', 'person-badge', 'tools', 'signpost-split', 'people-fill'],
+            options=['Visão Geral', 'Análise de Pilotos', 'Análise de Construtores', 'Análise de Circuitos', 'H2H Pilotos', 'CRUD'],
+            icons=['trophy', 'person-badge', 'tools', 'signpost-split', 'people-fill', 'database-fill-gear'],
             menu_icon='speed',
             default_index=0,
+            key="main_menu",
             styles={
                 "container": {"padding": "5!important", "background-color": F1_BLACK},
                 "icon": {"color": "white", "font-size": "23px"}, 
@@ -259,11 +309,10 @@ def main():
             }
         )
     
-    if conn is None:
-        return
+    if conn is None: return
     dados_completos = carregar_todos_os_dados()
-    if any(df.empty for name, df in dados_completos.items()):
-        st.error(f"Falha ao carregar um ou mais conjuntos de dados. Verifique a conexão e os nomes das tabelas no banco.")
+    if any(df.empty for df in dados_completos.values()):
+        st.error("Falha ao carregar um ou mais conjuntos de dados. Verifique a conexão e os nomes das tabelas no banco.")
         return
 
     page_map = {
@@ -271,14 +320,12 @@ def main():
         'Análise de Pilotos': render_pagina_analise_pilotos,
         'Análise de Construtores': render_pagina_analise_construtores,
         'Análise de Circuitos': render_pagina_analise_circuitos,
-        'H2H Pilotos': render_pagina_h2h
+        'H2H Pilotos': render_pagina_h2h,
+        'CRUD': render_pagina_crud
     }
     page_function = page_map.get(app_page)
     if page_function:
         page_function(dados_completos)
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()
