@@ -858,35 +858,50 @@ def render_pagina_gerenciamento(conn):
                     st.warning("Por favor, preencha todos os campos obrigatórios.")
 
     with tab_read:
-        st.subheader("Consultar e Filtrar Pilotos")
-        try:
-            pilotos_df = pd.read_sql_query('SELECT "driverId", "driverRef", code, number, forename, surname, dob, nationality FROM drivers ORDER BY surname', conn)
-            
-            search_term = st.text_input("Buscar por nome, sobrenome ou código...", placeholder="Ex: Lewis, Hamilton, HAM")
+        st.subheader("Consultar e Filtrar Dados do Banco")
+        
+        tabela_selecionada = st.radio(
+            "Selecione qual tabela você quer consultar:",
+            ["Pilotos", "Equipes", "Circuitos"],
+            horizontal=True
+        )
 
-            if search_term:
-                search_term = search_term.lower()
-                pilotos_df = pilotos_df[
-                    pilotos_df['forename'].str.lower().contains(search_term) |
-                    pilotos_df['surname'].str.lower().contains(search_term) |
-                    pilotos_df['code'].str.lower().contains(search_term)
-                ]
+        try:
+            if tabela_selecionada == "Pilotos":
+                df = pd.read_sql_query('SELECT "driverId", "driverRef", code, number, forename, surname, dob, nationality FROM drivers ORDER BY surname', conn)
+                search_term = st.text_input("Buscar por nome, sobrenome ou código...", placeholder="Ex: Lewis, Hamilton, HAM")
+                if search_term:
+                    search_term = search_term.lower()
+                    df = df[
+                        df['forename'].str.lower().contains(search_term) |
+                        df['surname'].str.lower().contains(search_term) |
+                        df['code'].str.lower().contains(search_term, na=False)
+                    ]
+
+            elif tabela_selecionada == "Equipes":
+                df = pd.read_sql_query('SELECT "constructorId", "constructorRef", name, nationality FROM constructors ORDER BY name', conn)
+                search_term = st.text_input("Buscar por nome ou nacionalidade...", placeholder="Ex: Ferrari, Italian")
+                if search_term:
+                    search_term = search_term.lower()
+                    df = df[
+                        df['name'].str.lower().contains(search_term) |
+                        df['nationality'].str.lower().contains(search_term)
+                    ]
             
-            if pilotos_df.empty:
-                st.info("Nenhum piloto encontrado com os critérios de busca.")
-            else:
-                st.write(f"Exibindo {len(pilotos_df)} piloto(s):")
-                for index, row in pilotos_df.iterrows():
-                    with st.container(border=True):
-                        c1, c2, c3, c4 = st.columns([1, 3, 2, 2])
-                        c1.image("https://www.fia.com/sites/default/files/styles/profile_main/public/profile/image/F1-Driver-Default-Image.png", width=70)
-                        c2.markdown(f"**{row['forename']} {row['surname']}**")
-                        c2.caption(f"Ref: {row['driverRef']}")
-                        c3.metric("Número", f"#{int(row['number'])}" if pd.notna(row['number']) else "N/A")
-                        c4.metric("Nacionalidade", row['nationality'])
+            elif tabela_selecionada == "Circuitos":
+                df = pd.read_sql_query('SELECT "circuitId", "circuitRef", name, location, country FROM circuits ORDER BY name', conn)
+                search_term = st.text_input("Buscar por nome, local ou país...", placeholder="Ex: Monaco, Monte Carlo")
+                if search_term:
+                    search_term = search_term.lower()
+                    df = df[
+                        df['name'].str.lower().contains(search_term) |
+                        df['location'].str.lower().contains(search_term) |
+                        df['country'].str.lower().contains(search_term)
+                    ]
+            st.dataframe(df, use_container_width=True, hide_index=True)
 
         except Exception as e:
-            st.error(f"Não foi possível consultar os pilotos: {e}")
+            st.error(f"Não foi possível consultar os dados: {e}")
 
     with tab_update:
         st.subheader("Atualizar Dados de um Piloto")
