@@ -30,7 +30,7 @@ def conectar_db():
         return None
         
 @st.cache_data(ttl=60)
-def carregar_todos_os_dados(conn):
+def carregar_todos_os_dados(_conn):
     st.info("Carregando dados do banco de dados... Isso pode levar um momento.")
     queries = {
         'races': 'SELECT * FROM races',
@@ -50,7 +50,7 @@ def carregar_todos_os_dados(conn):
     data = {}
     try:
         for name, query in queries.items():
-            data[name] = pd.read_sql_query(query, conn)
+            data[name] = pd.read_sql_query(query, _conn)
 
         for df_name in data:
             data[df_name].replace('\\N', pd.NA, inplace=True)
@@ -366,22 +366,88 @@ def render_hall_da_fama(data):
         fig.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="")
         st.plotly_chart(fig, use_container_width=True)
 
+def render_pagina_gerenciamento(conn):
+    st.title("🔩 Gerenciamento de Dados (CRUD)")
+    st.info("Esta página cumpre o requisito de operações básicas de CRUD (Criar, Consultar, Atualizar, Excluir) em uma tabela.")
+
+    tab_create, tab_read, tab_update, tab_delete = st.tabs(["➕ Criar Piloto", "🔍 Consultar Pilotos", "🔄 Atualizar Piloto", "❌ Deletar Piloto"])
+
+    with tab_read:
+        st.subheader("Consultar Tabela de Pilotos")
+        try:
+            pilotos_df = pd.read_sql_query("SELECT driverId, driverRef, code, forename, surname, dob, nationality FROM drivers ORDER BY surname", conn)
+            st.dataframe(pilotos_df, use_container_width=True)
+        except Exception as e:
+            st.error(f"Não foi possível consultar os pilotos: {e}")
+
+    with tab_create:
+        st.subheader("Adicionar Novo Piloto")
+        with st.form("form_create", clear_on_submit=True):
+            st.write("Insira os dados do novo piloto.")
+            forename = st.text_input("Nome (Forename)")
+            surname = st.text_input("Sobrenome (Surname)")
+            driverRef = st.text_input("Referência (ex: 'hamilton')")
+            code = st.text_input("Código (3 letras, ex: 'HAM')", max_chars=3)
+            dob = st.date_input("Data de Nascimento")
+            nationality = st.text_input("Nacionalidade")
+            
+            submitted = st.form_submit_button("Adicionar Piloto")
+            if submitted:
+                if all([forename, surname, driverRef, dob, nationality]):
+                    query = "INSERT INTO drivers (driverRef, code, forename, surname, dob, nationality) VALUES (%s, %s, %s, %s, %s, %s)"
+                    if executar_comando_sql(query, (driverRef, code.upper(), forename, surname, dob, nationality)):
+                        st.success(f"Piloto {forename} {surname} adicionado com sucesso!")
+                    # A função executar_comando_sql já mostra o erro se falhar.
+                else:
+                    st.warning("Por favor, preencha todos os campos.")
+
+    with tab_update:
+        st.subheader("Atualizar Nacionalidade de um Piloto")
+        pilotos_df_update = pd.read_sql_query("SELECT driverId, forename || ' ' || surname as driver_name FROM drivers ORDER BY surname", conn)
+        piloto_selecionado = st.selectbox("Selecione um piloto para atualizar", options=pilotos_df_update['driver_name'], index=None)
+        
+        if piloto_selecionado:
+            id_piloto = int(pilotos_df_update[pilotos_df_update['driver_name'] == piloto_selecionado]['driverId'].iloc[0])
+            nova_nacionalidade = st.text_input("Digite a nova nacionalidade")
+            if st.button("Atualizar Nacionalidade"):
+                if nova_nacionalidade:
+                    query = "UPDATE drivers SET nationality = %s WHERE driverId = %s"
+                    if executar_comando_sql(query, (nova_nacionalidade, id_piloto)):
+                        st.success(f"Nacionalidade do piloto {piloto_selecionado} atualizada com sucesso!")
+                else:
+                    st.warning("O campo de nova nacionalidade não pode estar vazio.")
+
+    with tab_delete:
+        st.subheader("Deletar um Piloto")
+        st.warning("CUIDADO: Esta ação é irreversível e pode afetar a integridade dos dados se o piloto estiver ligado a resultados de corridas.", icon="⚠️")
+        pilotos_df_delete = pd.read_sql_query("SELECT driverId, forename || ' ' || surname as driver_name FROM drivers ORDER BY surname", conn)
+        piloto_para_deletar = st.selectbox("Selecione um piloto para deletar", options=pilotos_df_delete['driver_name'], index=None, key="delete_select")
+        
+        if piloto_para_deletar:
+            id_piloto_del = int(pilotos_df_delete[pilotos_df_delete['driver_name'] == piloto_para_deletar]['driverId'].iloc[0])
+            if st.button(f"DELETAR PERMANENTEMENTE {piloto_para_deletar}", type="primary"):
+                # É uma boa prática verificar se o piloto tem resultados antes de deletar,
+                # mas para um CRUD simples, a exclusão direta é suficiente para o requisito.
+                query = "DELETE FROM drivers WHERE driverId = %s"
+                if executar_comando_sql(query, (id_piloto_del,)):
+                    st.success(f"Piloto {piloto_para_deletar} deletado com sucesso!")
+
 def main():
     with st.sidebar:
         st.image("f1_logo.png", width=300)
         app_page = option_menu(
             menu_title='F1 Super Analytics',
-            options=['Visão Geral', 'Análise de Pilotos', 'Análise de Construtores', 'Análise de Temporada', 'Análise de Corrida', 'H2H', 'Hall da Fama'],
-            icons=['trophy-fill', 'person-badge', 'tools', 'graph-up', 'flag-fill', 'people-fill', 'award-fill'],
+            options=['Visão Geral', 'Análise de Pilotos', 'Análise de Construtores', 'Análise de Temporada', 'Análise de Corrida', 'H2H', 'Hall da Fama', 'Gerenciamento (CRUD)'], # Adicionado aqui
+            icons=['trophy-fill', 'person-badge', 'tools', 'graph-up', 'flag-fill', 'people-fill', 'award-fill', 'pencil-square'], # E aqui
             menu_icon='speed', default_index=0,
             styles={"nav-link-selected": {"background-color": F1_RED}}
         )
     
-    conn = conectar_db() # Garante que a conexão seja estabelecida
+    conn = conectar_db()
     if conn is None:
-        st.stop() # Interrompe a execução se a conexão falhar
+        st.stop()
         
-    dados_completos = carregar_todos_os_dados(conn)
+    dados_completos = carregar_todos_os_dados(conn) # A chamada não muda
     if dados_completos is None:
         st.stop()
 
@@ -393,11 +459,16 @@ def main():
         'Análise de Corrida': render_analise_corrida,
         'H2H': render_h2h,
         'Hall da Fama': render_hall_da_fama,
+        'Gerenciamento (CRUD)': render_pagina_gerenciamento, # Adicionado aqui
     }
     
     page_function = page_map.get(app_page)
+    
     if page_function:
-        page_function(dados_completos)
+        if app_page == 'Gerenciamento (CRUD)':
+            page_function(conn) # A página de CRUD precisa da conexão para escrever no banco
+        else:
+            page_function(dados_completos) # As outras páginas usam os dados já carregados
 
 if __name__ == "__main__":
     main()
