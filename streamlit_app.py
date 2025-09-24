@@ -585,7 +585,7 @@ def main():
     with st.sidebar:
         st.image("f1_logo.png", width=300)
         app_page = option_menu(
-            menu_title='F1 Super Analytics',
+            menu_title='F1 Analytics',
             options=['Visão Geral', 'Análise de Pilotos', 'Análise de Construtores', 'Análise de Circuitos', 'H2H', 'Hall da Fama', 'Gerenciamento (CRUD)'],
             icons=['trophy-fill', 'person-badge', 'tools', 'signpost-split', 'people-fill', 'award-fill', 'pencil-square'],
             menu_icon='speed',
