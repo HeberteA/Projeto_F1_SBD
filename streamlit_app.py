@@ -591,7 +591,9 @@ def render_hall_da_fama(data):
     
     races_com_standings = data['races'].merge(data['driver_standings'], on='raceId')
     finais_de_ano = races_com_standings.loc[races_com_standings.groupby('year')['round'].idxmax()]
-    campeoes_pilotos = finais_de_ano[finais_de_ano['position'] == 1]['driver_name'].value_counts()
+    
+    campeoes_df = finais_de_ano[finais_de_ano['position'] == 1].merge(drivers, on='driverId')
+    campeoes_pilotos = campeoes_df['driver_name'].value_counts()
     
     races_com_standings_c = data['races'].merge(data['constructor_standings'], on='raceId')
     finais_de_ano_c = races_com_standings_c.loc[races_com_standings_c.groupby('year')['round'].idxmax()]
@@ -601,12 +603,15 @@ def render_hall_da_fama(data):
     vitorias_temporada_construtor = results_full[results_full['position'] == 1].groupby(['year', 'name_y']).size().nlargest(1)
 
     corridas_por_piloto = results_full.groupby('driverId')['raceId'].nunique()
-    vitorias_por_piloto_raw = results_full[results_full['position'] == 1]['driverId'].value_counts()
+    corridas_validas = corridas_por_piloto[corridas_por_piloto >= 50].index
+    vitorias_por_piloto_raw = results_full[results_full['driverId'].isin(corridas_validas)]
+    vitorias_por_piloto_raw = vitorias_por_piloto_raw[vitorias_por_piloto_raw['position'] == 1]['driverId'].value_counts()
     perc_vitorias = (vitorias_por_piloto_raw / corridas_por_piloto).dropna().nlargest(1)
     
     vitorias_pilotos = results_full[results_full['position'] == 1]['driver_name'].value_counts()
     podios_pilotos = results_full[results_full['position'].isin([1,2,3])]['driver_name'].value_counts()
     poles_pilotos = qualifying[qualifying['position'] == 1].merge(drivers, on='driverId')['driver_name'].value_counts()
+    voltas_rapidas_pilotos = results_full[results_full['rank'] == 1]['driver_name'].value_counts()
     
     vitorias_construtores = results_full[results_full['position'] == 1]['name_y'].value_counts()
     podios_construtores = results_full[results_full['position'].isin([1,2,3])]['name_y'].value_counts()
@@ -627,10 +632,13 @@ def render_hall_da_fama(data):
     
     st.subheader("Feitos Históricos")
     c9, c10, c11, c12 = st.columns(4)
-    piloto_mais_efetivo_nome = data['drivers'][data['drivers']['driverId'] == perc_vitorias.index[0]]['driver_name'].iloc[0]
-    c9.metric("📊 Maior % de Vitórias", piloto_mais_efetivo_nome, f"{perc_vitorias.values[0]*100:.2f}%")
-    c10.metric("🗓️ Mais Vitórias (1 Ano)", f"{vitorias_temporada_piloto.index[0][1]} ({vitorias_temporada_piloto.index[0][0]})", f"{vitorias_temporada_piloto.values[0]} Vitórias")
-    c11.metric("🗓️ Mais Vitórias (1 Ano)", f"{vitorias_temporada_construtor.index[0][1]} ({vitorias_temporada_construtor.index[0][0]})", f"{vitorias_temporada_construtor.values[0]} Vitórias")
+    if not perc_vitorias.empty:
+        piloto_mais_efetivo_nome = data['drivers'][data['drivers']['driverId'] == perc_vitorias.index[0]]['driver_name'].iloc[0]
+        c9.metric("📊 Maior % de Vitórias (min. 50 GPs)", piloto_mais_efetivo_nome, f"{perc_vitorias.values[0]*100:.2f}%")
+    if not vitorias_temporada_piloto.empty:
+        c10.metric("🗓️ Mais Vitórias (Piloto/Ano)", f"{vitorias_temporada_piloto.index[0][1]} ({vitorias_temporada_piloto.index[0][0]})", f"{vitorias_temporada_piloto.values[0]} Vitórias")
+    if not vitorias_temporada_construtor.empty:
+        c11.metric("🗓️ Mais Vitórias (Equipe/Ano)", f"{vitorias_temporada_construtor.index[0][1]} ({vitorias_temporada_construtor.index[0][0]})", f"{vitorias_temporada_construtor.values[0]} Vitórias")
 
     st.markdown("---")
 
@@ -680,7 +688,7 @@ def render_hall_da_fama(data):
     g7, g8 = st.columns(2)
     with g7:
         st.markdown("**Títulos Mundiais de Pilotos por País**")
-        nacoes_campeas = finais_de_ano[finais_de_ano['position'] == 1].merge(drivers, on='driverId')['nationality'].value_counts()
+        nacoes_campeas = campeoes_df['nationality'].value_counts()
         fig_nac_camp = px.pie(nacoes_campeas, values=nacoes_campeas.values, names=nacoes_campeas.index, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
         st.plotly_chart(fig_nac_camp, use_container_width=True)
     with g8:
@@ -688,6 +696,7 @@ def render_hall_da_fama(data):
         nacoes_vitoriosas = results_full[results_full['position'] == 1]['nationality_x'].value_counts().nlargest(10)
         fig_nac_vit = px.bar(nacoes_vitoriosas, x=nacoes_vitoriosas.index, y=nacoes_vitoriosas.values, text=nacoes_vitoriosas.values, color_discrete_sequence=F1_PALETTE)
         st.plotly_chart(fig_nac_vit, use_container_width=True)
+        
 def render_analise_circuitos(data):
     st.title("🛣️ Análise de Circuitos")
     st.markdown("---")
