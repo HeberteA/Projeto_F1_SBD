@@ -471,9 +471,9 @@ def render_h2h(data):
 
     def get_winner_metric_label(value1, value2):
         if value1 > value2:
-            return f"🔼"
+            return f"+"
         elif value2 > value1:
-            return f"🔽"
+            return f"-"
         return ""
 
     col1, col2 = st.columns(2)
