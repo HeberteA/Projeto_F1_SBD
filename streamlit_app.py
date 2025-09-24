@@ -42,7 +42,6 @@ def executar_comando_sql(conn, comando, params=None):
 
 @st.cache_data(ttl=3600)
 def carregar_todos_os_dados(_conn):
-    st.info("Carregando e preparando dados do banco de dados...")
     
     queries = {
         'races': 'select * from races', 'results': 'select * from results',
@@ -70,10 +69,12 @@ def carregar_todos_os_dados(_conn):
         data['drivers']['driver_name'] = data['drivers']['forename'] + ' ' + data['drivers']['surname']
         
         numeric_cols = {
+            'races': ['year', 'round'],
             'results': ['points', 'position', 'grid', 'rank'],
             'pit_stops': ['milliseconds'],
             'driver_standings': ['points', 'position'],
-            'constructor_standings': ['points', 'position']
+            'constructor_standings': ['points', 'position'],
+            'lap_times': ['milliseconds', 'position', 'lap']
         }
 
         for df_name, cols in numeric_cols.items():
@@ -90,7 +91,6 @@ def carregar_todos_os_dados(_conn):
                                                   .merge(data['constructors'], on='constructorId')\
                                                   .merge(data['status'], on='statusId')
         
-        st.success("Dados carregados com sucesso!")
         return data
         
     except Exception as e:
