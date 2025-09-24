@@ -40,7 +40,7 @@ def executar_comando_sql(conn, comando, params=None):
         st.error(f"Erro ao executar comando SQL: {e}")
         return False
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=3600)
 def carregar_todos_os_dados(_conn):
     st.info("Carregando e preparando dados do banco de dados...")
     
@@ -82,8 +82,8 @@ def carregar_todos_os_dados(_conn):
                 for col in cols:
                     data[df_name][col] = pd.to_numeric(data[df_name][col], errors='coerce')
 
-        if 'pit_stops' in data:
-            data[df_name]['duration'] = data[df_name]['milliseconds'] / 1000
+        if 'pit_stops' in data and not data['pit_stops'].empty:
+            data['pit_stops']['duration'] = data['pit_stops']['milliseconds'] / 1000
         
         if all(k in data for k in ['results', 'races', 'drivers', 'constructors', 'status']):
             data['results_full'] = data['results'].merge(data['races'], on='raceId')\
