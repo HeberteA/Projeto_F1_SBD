@@ -615,7 +615,8 @@ def render_hall_da_fama(data):
     pontos_por_ano_construtor = results_full.groupby(['year', 'constructorId'])['points'].sum().reset_index()
     indices_campeoes_c = pontos_por_ano_construtor.loc[pontos_por_ano_construtor.groupby('year')['points'].idxmax()]
     campeoes_construtores_df = indices_campeoes_c.merge(constructors, on='constructorId')
-    campeoes_construtores = campeoes_construtores_df['name_y'].value_counts()
+    
+    campeoes_construtores = campeoes_construtores_df['name'].value_counts()
 
     vitorias_temporada_piloto = results_full[results_full['position'] == 1].groupby(['year', 'driver_name']).size().nlargest(1)
     vitorias_temporada_construtor = results_full[results_full['position'] == 1].groupby(['year', 'name_y']).size().nlargest(1)
@@ -629,6 +630,7 @@ def render_hall_da_fama(data):
     poles_pilotos = qualifying[qualifying['position'] == 1].merge(drivers, on='driverId')['driver_name'].value_counts()
     vitorias_construtores = results_full[results_full['position'] == 1]['name_y'].value_counts()
     podios_construtores = results_full[results_full['position'].isin([1,2,3])]['name_y'].value_counts()
+
 
     st.header("Os Recordistas Absolutos (Baseado nos Dados Históricos)")
     st.subheader("Pilotos Lendários")
