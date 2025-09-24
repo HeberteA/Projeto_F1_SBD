@@ -223,7 +223,6 @@ def render_visao_geral(data):
                                 title="Correlação entre largar na frente e terminar bem")
     st.plotly_chart(fig_grid_final, use_container_width=True)
     
-from datetime import date
 
 def render_analise_pilotos(data):
     st.title("🧑‍🚀 Análise de Pilotos")
@@ -269,6 +268,11 @@ def render_analise_pilotos(data):
     total_voltas_corridas = res_piloto['laps'].sum()
     total_dnfs = res_piloto['position'].isna().sum()
     
+    poles_df = quali_piloto[quali_piloto['position'] == 1][['raceId']]
+    vitorias_df = res_piloto[res_piloto['position'] == 1][['raceId']]
+    voltas_rapidas_df = res_piloto[res_piloto['rank'] == 1][['raceId']]
+    hat_tricks = poles_df.merge(vitorias_df, on='raceId').merge(voltas_rapidas_df, on='raceId').shape[0]
+
     perc_vitorias = (total_vitorias / total_corridas * 100) if total_corridas > 0 else 0
     perc_podios = (total_podios / total_corridas * 100) if total_corridas > 0 else 0
     media_grid = quali_piloto['position'].mean()
@@ -285,17 +289,18 @@ def render_analise_pilotos(data):
 
     st.subheader("Números da Carreira")
     c5, c6, c7, c8, c9 = st.columns(5)
-    c5.metric("👑 Campeonatos Mundiais", f"{campeonatos_vencidos}") 
+    c5.metric("👑 Campeonatos Mundiais", f"{campeonatos_vencidos}")
     c6.metric("🥇 Vitórias", f"{total_vitorias}")
     c7.metric("🍾 Pódios", f"{total_podios}")
     c8.metric("⏱️ Pole Positions", f"{total_poles}")
     c9.metric("🚀 Voltas Rápidas", f"{total_voltas_rapidas}")
 
-    c10, c11, c12, c13 = st.columns(4)
+    c10, c11, c12, c13, c14 = st.columns(5)
     c10.metric("💯 Pontos Totais", f"{total_pontos:,.0f}")
     c11.metric("🏎️ Corridas Disputadas", f"{total_corridas}")
     c12.metric("🔄 Total de Voltas", f"{total_voltas_corridas:,.0f}")
     c13.metric("💥 Total de Abandonos", f"{total_dnfs}")
+    c14.metric("🎩 Hat-Tricks", f"{hat_tricks}")
 
     st.subheader("Métricas de Performance")
     c14, c15, c16, c17 = st.columns(4)
