@@ -816,10 +816,10 @@ def render_analise_circuitos(data):
         st.plotly_chart(fig_dnf, use_container_width=True, key="circuit_dnf_chart")
 
 def render_pagina_gerenciamento(conn):
-    st.title("🔩 Gerenciamento de Pilotos (CRUD)")
+    st.title("🔩 Gerenciamento de Dados (CRUD)")
     st.info("Esta página cumpre o requisito de operações básicas de CRUD (Criar, Consultar, Atualizar, Excluir) em uma tabela.")
 
-    tab_create, tab_read, tab_update, tab_delete = st.tabs(["➕ Criar Piloto", "🔍 Consultar Pilotos", "🔄 Atualizar Piloto", "❌ Deletar Piloto"])
+    tab_create, tab_read, tab_update, tab_delete = st.tabs(["➕ Criar Piloto", "🔍 Consultar Dados", "🔄 Atualizar Piloto", "❌ Deletar Piloto"])
 
     with tab_create:
         st.subheader("Adicionar Novo Piloto")
@@ -855,15 +855,16 @@ def render_pagina_gerenciamento(conn):
         st.subheader("Consultar e Filtrar Dados do Banco")
         
         tabela_selecionada = st.radio(
-            "Selecione qual tabela você quer consultar:",
+            "Selecione a tabela para consultar:",
             ["Pilotos", "Equipes", "Circuitos"],
             horizontal=True
         )
 
         try:
+            df = pd.DataFrame()
             if tabela_selecionada == "Pilotos":
                 df = pd.read_sql_query('SELECT "driverId", "driverRef", code, number, forename, surname, dob, nationality FROM drivers ORDER BY surname', conn)
-                search_term = st.text_input("Buscar por nome, sobrenome ou código...", placeholder="Ex: Lewis, Hamilton, HAM")
+                search_term = st.text_input("Buscar por nome, sobrenome ou código...", key="search_pilotos")
                 if search_term:
                     search_term = search_term.lower()
                     df = df[
@@ -874,7 +875,7 @@ def render_pagina_gerenciamento(conn):
 
             elif tabela_selecionada == "Equipes":
                 df = pd.read_sql_query('SELECT "constructorId", "constructorRef", name, nationality FROM constructors ORDER BY name', conn)
-                search_term = st.text_input("Buscar por nome ou nacionalidade...", placeholder="Ex: Ferrari, Italian")
+                search_term = st.text_input("Buscar por nome ou nacionalidade...", key="search_equipes")
                 if search_term:
                     search_term = search_term.lower()
                     df = df[
@@ -884,7 +885,7 @@ def render_pagina_gerenciamento(conn):
             
             elif tabela_selecionada == "Circuitos":
                 df = pd.read_sql_query('SELECT "circuitId", "circuitRef", name, location, country FROM circuits ORDER BY name', conn)
-                search_term = st.text_input("Buscar por nome, local ou país...", placeholder="Ex: Monaco, Monte Carlo")
+                search_term = st.text_input("Buscar por nome, local ou país...", key="search_circuitos")
                 if search_term:
                     search_term = search_term.lower()
                     df = df[
@@ -892,6 +893,7 @@ def render_pagina_gerenciamento(conn):
                         df['location'].str.lower().contains(search_term) |
                         df['country'].str.lower().contains(search_term)
                     ]
+            
             st.dataframe(df, use_container_width=True, hide_index=True)
 
         except Exception as e:
@@ -902,7 +904,14 @@ def render_pagina_gerenciamento(conn):
         try:
             pilotos_df_update = pd.read_sql_query('SELECT "driverId", forename || \' \' || surname as driver_name, code, number, nationality FROM drivers ORDER BY surname', conn)
             pilotos_df_update.dropna(subset=['driverId', 'driver_name'], inplace=True)
-            piloto_selecionado_nome = st.selectbox("Selecione um piloto para atualizar", options=pilotos_df_update['driver_name'], index=None)
+            
+            search_update = st.text_input("Buscar piloto para atualizar...", key="search_update")
+            if search_update:
+                pilotos_filtrados = pilotos_df_update[pilotos_df_update['driver_name'].str.contains(search_update, case=False)]
+            else:
+                pilotos_filtrados = pilotos_df_update
+
+            piloto_selecionado_nome = st.selectbox("Selecione um piloto da lista:", options=pilotos_filtrados['driver_name'], index=None)
             
             if piloto_selecionado_nome:
                 piloto_info = pilotos_df_update[pilotos_df_update['driver_name'] == piloto_selecionado_nome].iloc[0]
@@ -926,7 +935,14 @@ def render_pagina_gerenciamento(conn):
         try:
             pilotos_df_delete = pd.read_sql_query("SELECT \"driverId\", forename || ' ' || surname as driver_name FROM drivers ORDER BY surname", conn)
             pilotos_df_delete.dropna(subset=['driverId', 'driver_name'], inplace=True)
-            piloto_para_deletar = st.selectbox("Selecione um piloto para deletar", options=pilotos_df_delete['driver_name'], index=None, key="delete_select")
+
+            search_delete = st.text_input("Buscar piloto para deletar...", key="search_delete")
+            if search_delete:
+                pilotos_filtrados_del = pilotos_df_delete[pilotos_df_delete['driver_name'].str.contains(search_delete, case=False)]
+            else:
+                pilotos_filtrados_del = pilotos_df_delete
+            
+            piloto_para_deletar = st.selectbox("Selecione um piloto da lista para deletar:", options=pilotos_filtrados_del['driver_name'], index=None, key="delete_select")
             
             if piloto_para_deletar:
                 id_piloto_del = int(pilotos_df_delete[pilotos_df_delete['driver_name'] == piloto_para_deletar]['driverId'].iloc[0])
