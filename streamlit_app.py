@@ -83,7 +83,7 @@ def carregar_todos_os_dados(_conn):
                     data[df_name][col] = pd.to_numeric(data[df_name][col], errors='coerce')
 
         if 'pit_stops' in data:
-            data['pit_stops']['duration'] = data['pit_stops']['milliseconds'] / 1000
+            data[df_name]['duration'] = data[df_name]['milliseconds'] / 1000
         
         if all(k in data for k in ['results', 'races', 'drivers', 'constructors', 'status']):
             data['results_full'] = data['results'].merge(data['races'], on='raceId')\
