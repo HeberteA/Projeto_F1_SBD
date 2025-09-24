@@ -5,7 +5,7 @@ import plotly.express as px
 from streamlit_option_menu import option_menu
 
 # Configuração da página
-st.set_page_config(layout="wide", page_title="F1 Super Analytics", page_icon="🏎️")
+st.set_page_config(layout="wide", page_title="F1 Super Analytics", page_icon="f1.png")
 
 # Paleta de cores padrão da F1
 F1_PALETTE = ["#E10600", "#15151E", "#7F7F7F", "#B1B1B8", "#FFFFFF", "#FF8700", "#00A000"]
@@ -85,7 +85,7 @@ if pagina_selecionada == "Análises":
                     kpi_data = kpi_df.iloc[0]
                     c1, c2, c3, c4, c5, c6 = st.columns(6)
                     c1.metric("🏆 Títulos", int(kpi_data["titulos"]))
-                    c2.metric("Corridas", int(kpi_data["total_corridas"]))
+                    c2.metric("🏎️ Corridas", int(kpi_data["total_corridas"]))
                     c3.metric("🥇 Vitórias", int(kpi_data["vitorias"]))
                     c4.metric("🥈 Pódios", int(kpi_data["podios"]))
                     c5.metric("⏱️ Poles", int(kpi_data["poles"]))
