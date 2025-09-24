@@ -285,7 +285,6 @@ def render_analise_pilotos(data):
 
     st.markdown("---")
 
-    # --- GRÁFICOS ---
     st.header("Análise Gráfica da Carreira")
     
     g1, g2 = st.columns(2)
@@ -315,15 +314,14 @@ def render_analise_pilotos(data):
     with g2:
         st.subheader("Desempenho Anual")
         standings_piloto = data['driver_standings'][data['driver_standings']['driverId'] == id_piloto]
-        # Pega a última corrida de cada ano para saber a posição final
         races_com_standings = data['races'].merge(standings_piloto, on='raceId')
         pos_final_ano = races_com_standings.loc[races_com_standings.groupby('year')['round'].idxmax()]
         
         fig_champ = px.line(pos_final_ano, x='year', y='position', markers=True, 
                             title="Posição Final no Campeonato por Ano",
                             labels={'year': 'Temporada', 'position': 'Posição Final'},
-                            color_discrete_sequence=[F1_BLACK])
-        fig_champ.update_yaxes(autorange="reversed") # Posição 1 fica no topo
+                            color_discrete_sequence=[F1_RED])
+        fig_champ.update_yaxes(autorange="reversed")
         st.plotly_chart(fig_champ, use_container_width=True)
     
     st.markdown("---")
@@ -352,7 +350,7 @@ def render_analise_pilotos(data):
     fig_grid_final = px.scatter(grid_final_piloto, x='grid', y='position',
                                 labels={'grid': 'Grid de Largada', 'position': 'Posição Final'},
                                 trendline='ols', trendline_color_override=F1_RED,
-                                color_discrete_sequence=[F1_BLACK],
+                                color_discrete_sequence=[F1_RED],
                                 title=f"Correlação entre largar e chegar ({len(grid_final_piloto)} corridas)")
     st.plotly_chart(fig_grid_final, use_container_width=True)
 
