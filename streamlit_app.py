@@ -42,7 +42,7 @@ def executar_comando_sql(conn, comando, params=None):
 
 @st.cache_data(ttl=60)
 def carregar_todos_os_dados(_conn):
-    st.info("Carregando e preparando dados do banco de dados...")
+
     
     queries = {
         'races': 'select * from races', 
