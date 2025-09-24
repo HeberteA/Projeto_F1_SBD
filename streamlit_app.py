@@ -66,8 +66,8 @@ def carregar_todos_os_dados(_conn):
         numeric_cols = {
             'results': ['points', 'position', 'grid', 'rank'], 
             'pit_stops': ['milliseconds'],
-            'driver_standings': ['points', 'position'], 
-            'constructor_standings': ['points', 'position']
+            'driver_standings': ['points', 'position'],
+            'constructor_standings': ['points', 'position'] 
         }
         for df_name, cols in numeric_cols.items():
             for col in cols:
@@ -354,7 +354,6 @@ def render_analise_construtores(data):
     st.title("🔧 Análise de Construtores")
     st.markdown("---")
 
-    # --- FILTRO DE CONSTRUTOR ---
     construtor_nome = st.selectbox(
         "Selecione um Construtor",
         options=data['constructors'].sort_values('name')['name'],
@@ -366,7 +365,6 @@ def render_analise_construtores(data):
         st.info("Selecione um construtor para ver o dossiê completo de sua história.")
         return
 
-    # --- FILTRAGEM DE DADOS ---
     construtor_info = data['constructors'][data['constructors']['name'] == construtor_nome].iloc[0]
     id_construtor = construtor_info['constructorId']
     
@@ -378,23 +376,21 @@ def render_analise_construtores(data):
 
     st.header(f"Dossiê da Equipe: {construtor_nome}")
 
-    # --- CÁLCULOS PARA OS CARDS ---
     primeiro_ano = results_construtor['year'].min()
     ultimo_ano = results_construtor['year'].max()
     
-    # Campeonatos de Construtores
     standings_construtor = data['constructor_standings'][data['constructor_standings']['constructorId'] == id_construtor]
     campeonatos_constr = 0
+    pos_final_ano_constr = pd.DataFrame() 
     if not standings_construtor.empty:
         races_com_standings = data['races'].merge(standings_construtor, on='raceId')
+        races_com_standings['round'] = pd.to_numeric(races_com_standings['round'], errors='coerce')
         pos_final_ano_constr = races_com_standings.loc[races_com_standings.groupby('year')['round'].idxmax()]
         campeonatos_constr = (pos_final_ano_constr['position'] == 1).sum()
 
-    # Pilotos com mais vitórias e pontos PELA EQUIPE
     vitorias_por_piloto = results_construtor[results_construtor['position'] == 1]['driver_name'].value_counts().nlargest(1)
     pontos_por_piloto = results_construtor.groupby('driver_name')['points'].sum().nlargest(1)
     
-    # Pilotos que foram campeões PELA EQUIPE
     anos_com_pilotos_campeoes = []
     standings_pilotos_geral = data['driver_standings']
     for year in results_construtor['year'].unique():
@@ -405,7 +401,6 @@ def render_analise_construtores(data):
             if id_piloto_campeao in results_construtor[results_construtor['year'] == year]['driverId'].unique():
                 anos_com_pilotos_campeoes.append(year)
     
-    # --- EXIBIÇÃO DOS CARDS ---
     st.subheader("Visão Geral da Equipe")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("🌍 Nacionalidade", construtor_info['nationality'])
@@ -424,11 +419,10 @@ def render_analise_construtores(data):
 
     st.markdown("---")
 
-    # --- GRÁFICOS ---
     st.header("Análise Gráfica Histórica")
 
     st.subheader("Desempenho Anual no Campeonato de Construtores")
-    if not standings_construtor.empty:
+    if not pos_final_ano_constr.empty:
         fig_champ = px.line(pos_final_ano_constr, x='year', y='position', markers=True, 
                             labels={'year': 'Temporada', 'position': 'Posição Final'},
                             color_discrete_sequence=[F1_BLACK])
