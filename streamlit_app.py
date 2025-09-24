@@ -56,10 +56,10 @@ def carregar_todos_os_dados():
         "tbl_resultados": "SELECT id_resultado, posicao_final, pontos, posicao_grid, voltas, id_corrida_fk, id_piloto_fk, id_construtor_fk, id_status_fk FROM tbl_resultados",
         "tbl_pilotos": "SELECT id_piloto, ref_piloto, numero, codigo, nome as nome_piloto, sobrenome, data_nascimento, nacionalidade FROM tbl_pilotos",
         "tbl_construtores": "SELECT id_construtor, ref_construtor, nome as nome_construtor, nacionalidade as nacionalidade_construtor FROM tbl_construtores",
-        "driver_standings": "SELECT raceId, driverId, points, position, wins FROM driver_standings",
-        "constructor_standings": "SELECT raceId, constructorId, points, position, wins FROM constructor_standings",
-        "pit_stops": "SELECT raceId, driverId, stop, lap, milliseconds FROM pit_stops",
-        "qualifying": "SELECT raceId, driverId, constructorId, position as quali_position FROM qualifying",
+        "driver_standings": 'SELECT "raceId", "driverId", points, position, wins FROM driver_standings',
+        "constructor_standings": 'SELECT "raceId", "constructorId", points, position, wins FROM constructor_standings',
+        "pit_stops": 'SELECT "raceId", "driverId", stop, lap, milliseconds FROM pit_stops',
+        "qualifying": 'SELECT "raceId", "driverId", "constructorId", position as quali_position FROM qualifying',
         "tbl_circuitos": "SELECT id_circuito, nome as nome_circuito, cidade, pais FROM tbl_circuitos",
         "tbl_status_resultado": "SELECT id_status, status FROM tbl_status_resultado"
     }
