@@ -414,7 +414,7 @@ def main():
             'Análise de Circuitos': render_analise_circuitos,
             'H2H': render_h2h,
             'Hall da Fama': render_hall_da_fama
-            'CRUD': render_pagina_gerenciamento
+            'Gerenciamento (CRUD)': render_pagina_gerenciamento
         }
         page_function = page_map.get(app_page)
         if page_function:
