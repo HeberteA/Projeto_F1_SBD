@@ -24,7 +24,7 @@ def conectar_db():
         return None
 conn = conectar_db()
 
-@st.cache_data(ttl=3600) # Aumentado o cache para 1 hora
+@st.cache_data(ttl=60) # Aumentado o cache para 1 hora
 def consultar_dados_df(query, params=None):
     if not conn: return pd.DataFrame()
     try:
