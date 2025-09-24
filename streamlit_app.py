@@ -599,53 +599,50 @@ def render_h2h(data):
     
 def render_hall_da_fama(data):
     st.title("🏆 Hall da Fama: As Lendas do Esporte")
+    
     st.markdown("---")
 
-    # --- CÁLCULOS BASEADOS NO DATASET DO PROJETO ---
     results_full = data['results_full']
     drivers = data['drivers']
     constructors = data['constructors']
+    qualifying = data['qualifying']
     
-    # Campeonatos de Pilotos (do dataset)
-    races_com_standings = data['races'].merge(data['driver_standings'], on='raceId')
-    finais_de_ano = races_com_standings.loc[races_com_standings.groupby('year')['date'].idxmax()]
-    campeoes_df = finais_de_ano[finais_de_ano['position'] == 1].merge(drivers, on='driverId')
-    campeoes_pilotos_dataset = campeoes_df['driver_name'].value_counts()
+    pontos_por_ano_piloto = results_full.groupby(['year', 'driverId'])['points'].sum().reset_index()
+    indices_campeoes = pontos_por_ano_piloto.loc[pontos_por_ano_piloto.groupby('year')['points'].idxmax()]
+    campeoes_df = indices_campeoes.merge(drivers, on='driverId')
+    campeoes_pilotos = campeoes_df['driver_name'].value_counts()
     
-    # Campeonatos de Construtores (do dataset)
-    races_com_standings_c = data['races'].merge(data['constructor_standings'], on='raceId')
-    finais_de_ano_c = races_com_standings_c.loc[races_com_standings_c.groupby('year')['date'].idxmax()]
-    campeoes_construtores_df = finais_de_ano_c[finais_de_ano_c['position'] == 1].merge(constructors, on='constructorId')
-    campeoes_construtores_dataset = campeoes_construtores_df['name_y'].value_counts()
+    pontos_por_ano_construtor = results_full.groupby(['year', 'constructorId'])['points'].sum().reset_index()
+    indices_campeoes_c = pontos_por_ano_construtor.loc[pontos_por_ano_construtor.groupby('year')['points'].idxmax()]
+    campeoes_construtores_df = indices_campeoes_c.merge(constructors, on='constructorId')
+    campeoes_construtores = campeoes_construtores_df['name_y'].value_counts()
 
-    vitorias_pilotos_dataset = results_full[results_full['position'] == 1]['driver_name'].value_counts()
-    vitorias_construtores_dataset = results_full[results_full['position'] == 1]['name_y'].value_counts()
+    vitorias_temporada_piloto = results_full[results_full['position'] == 1].groupby(['year', 'driver_name']).size().nlargest(1)
+    vitorias_temporada_construtor = results_full[results_full['position'] == 1].groupby(['year', 'name_y']).size().nlargest(1)
+    corridas_por_piloto = results_full.groupby('driverId')['raceId'].nunique()
+    corridas_validas = corridas_por_piloto[corridas_por_piloto >= 50].index
+    vitorias_por_piloto_raw = results_full[results_full['driverId'].isin(corridas_validas)]
+    vitorias_por_piloto_raw = vitorias_por_piloto_raw[vitorias_por_piloto_raw['position'] == 1]['driverId'].value_counts()
+    perc_vitorias = (vitorias_por_piloto_raw / corridas_por_piloto).dropna().nlargest(1)
+    vitorias_pilotos = results_full[results_full['position'] == 1]['driver_name'].value_counts()
+    podios_pilotos = results_full[results_full['position'].isin([1,2,3])]['driver_name'].value_counts()
+    poles_pilotos = qualifying[qualifying['position'] == 1].merge(drivers, on='driverId')['driver_name'].value_counts()
+    vitorias_construtores = results_full[results_full['position'] == 1]['name_y'].value_counts()
+    podios_construtores = results_full[results_full['position'].isin([1,2,3])]['name_y'].value_counts()
 
-    # --- EXIBIÇÃO DOS CARDS ---
+    st.header("Os Recordistas Absolutos (Baseado nos Dados Históricos)")
+    st.subheader("Pilotos Lendários")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("👑 Mais Títulos", f"{campeoes_pilotos.index[0]}", f"{campeoes_pilotos.values[0]} Títulos")
+    c2.metric("🥇 Mais Vitórias", f"{vitorias_pilotos.index[0]}", f"{vitorias_pilotos.values[0]} Vitórias")
+    c3.metric("🍾 Mais Pódios", f"{podios_pilotos.index[0]}", f"{podios_pilotos.values[0]} Pódios")
+    c4.metric("⏱️ Mais Poles", f"{poles_pilotos.index[0]}", f"{poles_pilotos.values[0]} Poles")
 
-    st.header("Recordes Atuais (Mundo Real vs. Dataset do Projeto)")
-    st.info(
-        """
-        Abaixo comparamos os recordes reais da F1 (obtidos de fontes atualizadas) com os recordes calculados a partir do 
-        seu conjunto de dados. Isso demonstra a importância de se trabalhar com dados sempre atualizados.
-        """,
-        icon="💡"
-    )
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("Recordes Reais e Atuais")
-        st.metric("👑 Mais Títulos (Pilotos)", "M. Schumacher & L. Hamilton", "7 Títulos")
-        st.metric("🥇 Mais Vitórias (Piloto)", "Lewis Hamilton", "105 Vitórias")
-        st.metric("🏎️ Mais Títulos (Construtores)", "Ferrari", "16 Títulos")
-
-    with col2:
-        st.subheader("Recordes Calculados (do Dataset)")
-        st.metric("👑 Mais Títulos (Pilotos)", f"{campeoes_pilotos_dataset.index[0]}", f"{campeoes_pilotos_dataset.values[0]} Títulos")
-        st.metric("🥇 Mais Vitórias (Piloto)", f"{vitorias_pilotos_dataset.index[0]}", f"{vitorias_pilotos_dataset.values[0]} Vitórias")
-        st.metric("🏎️ Mais Títulos (Construtores)", f"{campeoes_construtores_dataset.index[0]}", f"{campeoes_construtores_dataset.values[0]} Títulos")
-
+    st.subheader("Construtores Dominantes")
+    c5, c6, c7, c8 = st.columns(4)
+    c5.metric("👑 Mais Títulos", f"{campeoes_construtores.index[0]}", f"{campeoes_construtores.values[0]} Títulos")
+    c6.metric("🥇 Mais Vitórias", f"{vitorias_construtores.index[0]}", f"{vitorias_construtores.values[0]} Vitórias")
+    c7.metric("🍾 Mais Pódios", f"{podios_construtores.index[0]}", f"{podios_construtores.values[0]} Pódios")
     if not vitorias_temporada_construtor.empty:
         c8.metric("🗓️ Mais Vitórias (Equipe/Ano)", f"{vitorias_temporada_construtor.index[0][1]} ({vitorias_temporada_construtor.index[0][0]})", f"{vitorias_temporada_construtor.values[0]} Vitórias")
 
