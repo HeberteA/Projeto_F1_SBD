@@ -3,16 +3,16 @@ import psycopg2
 import os
 
 SUPABASE_CONN_STRING = "postgresql://postgres.efryrgpkwwppfgumlaqm:Hebertes23@aws-1-sa-east-1.pooler.supabase.com:5432/postgres"
-DATA_PATH = r"C:\Users\heber\OneDrive\Documentos\Banco Dados\Projeto_F1_SBD\archive" # Usando raw string 'r'
+DATA_PATH = r"C:\Users\heber\OneDrive\Documentos\Banco Dados\Projeto_F1_SBD\archive"
 
 def conectar_db():
     """Cria e retorna uma conexão com o banco de dados Supabase."""
     try:
         conn = psycopg2.connect(SUPABASE_CONN_STRING)
-        print("✅ Conexão com o Supabase bem-sucedida!")
+        print("Conexão com o Supabase bem-sucedida!")
         return conn
     except psycopg2.Error as e:
-        print(f"❌ Erro ao conectar ao banco de dados Supabase: {e}")
+        print(f"Erro ao conectar ao banco de dados Supabase: {e}")
         return None
 
 def importar_dados(conn):
@@ -81,7 +81,7 @@ def importar_dados(conn):
         print(f"-> {len(df)} registros de resultados processados.")
 
         conn.commit()
-        print("\n✅ IMPORTAÇÃO CONCLUÍDA! Todos os dados foram carregados no banco de dados.")
+        print("\n IMPORTAÇÃO CONCLUÍDA! Todos os dados foram carregados no banco de dados.")
 
     except (Exception, psycopg2.Error) as error:
         print(f"❌ Um erro ocorreu durante a importação: {error}")
