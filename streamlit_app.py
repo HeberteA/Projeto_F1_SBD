@@ -13,16 +13,17 @@ F1_RED = F1_PALETTE[0]
 F1_BLACK = F1_PALETTE[1]
 F1_GREY = F1_PALETTE[2]
 
-# --- FUNÇÕES DE BANCO DE DADOS ---
 @st.cache_resource
 def conectar_db():
     try:
         db_secrets = st.secrets["database"]
-        conn_str = db_secrets.get("uri") or db_secrets.get("url")
+        conn_str = db_secrets.get("uri") or db_secrets.get("url") or db_secrets.get("connection_string")
+        
         if conn_str:
             return psycopg2.connect(conn_str)
         else:
             return psycopg2.connect(**db_secrets)
+            
     except Exception as e:
         st.error(f"Erro CRÍTICO de conexão com o banco de dados: {e}")
         return None
