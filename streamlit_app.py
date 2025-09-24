@@ -5,7 +5,7 @@ import plotly.express as px
 from streamlit_option_menu import option_menu
 
 # Configuração da página
-st.set_page_config(layout="wide", page_title="F1 Super Analytics", page_icon="f1.png")
+st.set_page_config(layout="wide", page_title="F1 Super Analytics", page_icon="🏎️")
 
 # Paleta de cores padrão da F1
 F1_PALETTE = ["#E10600", "#15151E", "#7F7F7F", "#B1B1B8", "#FFFFFF", "#FF8700", "#00A000"]
@@ -17,7 +17,7 @@ F1_GREY = F1_PALETTE[2]
 @st.cache_resource
 def conectar_db():
     try:
-        # A conexão agora usa st.secrets diretamente, que é o padrão do Streamlit
+        # CORREÇÃO: A conexão agora usa st.secrets diretamente, esperando chaves como host, dbname, etc.
         return psycopg2.connect(**st.secrets["database"])
     except Exception as e:
         st.error(f"Erro CRÍTICO de conexão com o banco de dados: {e}")
@@ -36,7 +36,6 @@ def consultar_dados_df(query, params=None):
 def executar_comando_sql(query, params=None):
     if not conn: return None
     try:
-        # Garante que a conexão está ativa antes de usar
         with conn.cursor() as cursor:
             cursor.execute(query, params)
             conn.commit()
@@ -86,7 +85,7 @@ if pagina_selecionada == "Análises":
                     kpi_data = kpi_df.iloc[0]
                     c1, c2, c3, c4, c5, c6 = st.columns(6)
                     c1.metric("🏆 Títulos", int(kpi_data["titulos"]))
-                    c2.metric("🏎️ Corridas", int(kpi_data["total_corridas"]))
+                    c2.metric("Corridas", int(kpi_data["total_corridas"]))
                     c3.metric("🥇 Vitórias", int(kpi_data["vitorias"]))
                     c4.metric("🥈 Pódios", int(kpi_data["podios"]))
                     c5.metric("⏱️ Poles", int(kpi_data["poles"]))
@@ -258,24 +257,23 @@ if pagina_selecionada == "Análises":
             c3.metric("🥈 Mais Pódios", records_df.loc['Pódios (Piloto)']['recordista'], f"{int(records_df.loc['Pódios (Piloto)']['recorde'])}")
             c4.metric("⏱️ Mais Poles", records_df.loc['Poles (Piloto)']['recordista'], f"{int(records_df.loc['Poles (Piloto)']['recorde'])}")
             c5.metric("🚀 Mais Voltas R.", records_df.loc['Voltas Rápidas (Piloto)']['recordista'], f"{int(records_df.loc['Voltas Rápidas (Piloto)']['recorde'])}")
+        
         st.divider()
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Ranking de Títulos de Pilotos")
-            query_pilot_champs_rank = "WITH yearly_points AS (SELECT c.ano, p.nome || ' ' || p.sobrenome as piloto, SUM(r.pontos) as total_pontos FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto GROUP BY c.ano, piloto), yearly_max_points AS (SELECT ano, MAX(total_pontos) as max_pontos FROM yearly_points GROUP BY ano), champions AS (SELECT yp.ano, yp.piloto FROM yearly_points yp JOIN yearly_max_points ymp ON yp.ano = ymp.ano AND yp.total_pontos = ymp.max_pontos) SELECT piloto, COUNT(*) as titulos FROM champions GROUP BY piloto ORDER BY titulos DESC LIMIT 15;"
-            pilot_champs_df = consultar_dados_df(query_pilot_champs_rank)
-            if not pilot_champs_df.empty:
-                fig_pilot_champs_rank = px.bar(pilot_champs_df, x='titulos', y='piloto', orientation='h', text_auto=True, labels={'titulos': 'Títulos Mundiais', 'piloto': 'Piloto'}, color_discrete_sequence=[F1_RED])
-                fig_pilot_champs_rank.update_layout(yaxis={'categoryorder':'total ascending'})
-                st.plotly_chart(fig_pilot_champs_rank, use_container_width=True)
-        with col2:
-            st.subheader("Ranking de Títulos de Construtores")
-            query_constructor_champs_rank = "WITH yearly_points AS (SELECT c.ano, con.nome as construtor, SUM(r.pontos) as total_pontos FROM tbl_resultados r JOIN tbl_corridas c ON r.id_corrida_fk = c.id_corrida JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor GROUP BY c.ano, construtor), yearly_max_points AS (SELECT ano, MAX(total_pontos) as max_pontos FROM yearly_points GROUP BY ano), champions AS (SELECT yp.ano, yp.construtor FROM yearly_points yp JOIN yearly_max_points ymp ON yp.ano = ymp.ano AND yp.total_pontos = ymp.max_pontos) SELECT construtor, COUNT(*) as titulos FROM champions GROUP BY construtor ORDER BY titulos DESC LIMIT 15;"
-            constructor_champs_df = consultar_dados_df(query_constructor_champs_rank)
-            if not constructor_champs_df.empty:
-                fig_constructor_champs_rank = px.bar(constructor_champs_df, x='titulos', y='construtor', orientation='h', text_auto=True, labels={'titulos': 'Títulos Mundais', 'construtor': 'Equipe'}, color_discrete_sequence=[F1_GREY])
-                fig_constructor_champs_rank.update_layout(yaxis={'categoryorder':'total ascending'})
-                st.plotly_chart(fig_constructor_champs_rank, use_container_width=True)
+        st.subheader("Rankings Top 15 de Todos os Tempos")
+        tab_vitorias, tab_podios, tab_poles, tab_voltas_rapidas, tab_titulos = st.tabs(["Vitórias", "Pódios", "Poles", "Voltas Rápidas", "Títulos"])
+        
+        with tab_vitorias:
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("###### Pilotos com mais vitórias")
+                vitorias_p_df = consultar_dados_df("SELECT p.nome || ' ' || p.sobrenome as piloto, COUNT(*) as vitorias FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto WHERE r.posicao_final = 1 GROUP BY piloto ORDER BY vitorias DESC LIMIT 15;")
+                fig = px.bar(vitorias_p_df, x='vitorias', y='piloto', orientation='h', text_auto=True, color_discrete_sequence=[F1_RED]).update_layout(yaxis={'categoryorder':'total ascending'})
+                st.plotly_chart(fig, use_container_width=True)
+            with c2:
+                st.markdown("###### Equipes com mais vitórias")
+                vitorias_e_df = consultar_dados_df("SELECT con.nome as equipe, COUNT(*) as vitorias FROM tbl_resultados r JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor WHERE r.posicao_final = 1 GROUP BY equipe ORDER BY vitorias DESC LIMIT 15;")
+                fig = px.bar(vitorias_e_df, x='vitorias', y='equipe', orientation='h', text_auto=True, color_discrete_sequence=[F1_GREY]).update_layout(yaxis={'categoryorder':'total ascending'})
+                st.plotly_chart(fig, use_container_width=True)
 
 # --- PÁGINA DE GERENCIAMENTO (CRUD) ---
 elif pagina_selecionada == "Gerenciamento":
@@ -289,41 +287,54 @@ elif pagina_selecionada == "Gerenciamento":
             nome = st.text_input("Primeiro Nome")
             sobrenome = st.text_input("Sobrenome")
             nacionalidade = st.text_input("Nacionalidade")
+            numero = st.number_input("Número do Carro", min_value=0, step=1, value=None)
+            codigo = st.text_input("Código do Piloto (3 letras)", max_chars=3)
+            data_nascimento = st.date_input("Data de Nascimento")
+            
             submitted = st.form_submit_button("Adicionar Piloto")
             if submitted:
-                sql = "INSERT INTO tbl_pilotos (id_piloto, ref_piloto, nome, sobrenome, nacionalidade) VALUES (%s, %s, %s, %s, %s)"
-                if executar_comando_sql(sql, (id_piloto, ref, nome, sobrenome, nacionalidade)) is not None:
-                    st.success("Piloto adicionado com sucesso!")
+                query = "INSERT INTO tbl_pilotos (id_piloto, ref_piloto, numero, codigo, nome, sobrenome, data_nascimento, nacionalidade) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);"
+                params = (id_piloto, ref, numero, codigo.upper(), nome, sobrenome, data_nascimento, nacionalidade)
+                if executar_comando_sql(query, params) is not None:
+                    st.success(f"Piloto {nome} {sobrenome} adicionado com sucesso!")
+    
     with tab_read:
         st.subheader("Consultar Tabelas")
-        opcoes = {"Pilotos": "SELECT * FROM tbl_pilotos", "Equipes": "SELECT * FROM tbl_construtores", "Circuitos": "SELECT * FROM tbl_circuitos"}
-        escolha = st.selectbox("Escolha a tabela para visualizar:", options=list(opcoes.keys()))
-        df = consultar_dados_df(opcoes[escolha])
-        st.dataframe(df, use_container_width=True, height=500)
+        tabelas_disponiveis = ["Pilotos", "Construtores", "Circuitos", "Corridas", "Status"]
+        tabela_selecionada = st.selectbox("Escolha a tabela para visualizar:", options=tabelas_disponiveis)
+        
+        map_tabelas = {
+            "Pilotos": "tbl_pilotos",
+            "Construtores": "tbl_construtores",
+            "Circuitos": "tbl_circuitos",
+            "Corridas": "tbl_corridas",
+            "Status": "tbl_status"
+        }
+        
+        if tabela_selecionada:
+            df = consultar_dados_df(f"SELECT * FROM {map_tabelas[tabela_selecionada]} LIMIT 100;")
+            st.dataframe(df, use_container_width=True)
+
     with tab_update:
         st.subheader("Atualizar Nacionalidade de um Construtor")
-        constr_df = consultar_dados_df("SELECT id_construtor, nome FROM tbl_construtores ORDER BY nome")
-        if not constr_df.empty:
-            constr_sel = st.selectbox("Selecione o Construtor", options=constr_df["nome"])
-            id_constr = constr_df[constr_df["nome"] == constr_sel]["id_construtor"].iloc[0]
+        constr_df_update = consultar_dados_df("SELECT id_construtor, nome FROM tbl_construtores ORDER BY nome")
+        if not constr_df_update.empty:
+            constr_sel = st.selectbox("Selecione o Construtor", options=constr_df_update["nome"], key="update_constr")
+            id_constr = int(constr_df_update[constr_df_update["nome"] == constr_sel]["id_construtor"].iloc[0])
             nova_nac = st.text_input("Digite a Nova Nacionalidade", key=f"nac_{id_constr}")
             if st.button("Atualizar Nacionalidade"):
-                sql = "UPDATE tbl_construtores SET nacionalidade = %s WHERE id_construtor = %s"
-                if executar_comando_sql(sql, (nova_nac, int(id_constr))):
+                if executar_comando_sql("UPDATE tbl_construtores SET nacionalidade = %s WHERE id_construtor = %s", (nova_nac, id_constr)) is not None:
                     st.success(f"Nacionalidade de '{constr_sel}' atualizada!")
+    
     with tab_delete:
         st.subheader("Deletar um Piloto")
-        st.warning("CUIDADO: Ação irreversível.", icon="⚠️")
+        st.warning("CUIDADO: Ação irreversível. A exclusão de um piloto pode causar problemas de integridade de dados se ele estiver associado a resultados de corridas.", icon="⚠️")
         pilotos_del_df = consultar_dados_df("SELECT id_piloto, nome, sobrenome FROM tbl_pilotos ORDER BY sobrenome")
         if not pilotos_del_df.empty:
             pilotos_del_df["nome_completo"] = pilotos_del_df["nome"] + " " + pilotos_del_df["sobrenome"]
-            piloto_del = st.selectbox("Selecione o Piloto a ser deletado", options=pilotos_del_df["nome_completo"], index=None)
-            if piloto_del:
-                if st.button(f"DELETAR {piloto_del}", type="primary"):
-                    id_piloto_del = pilotos_del_df[pilotos_del_df["nome_completo"] == piloto_del]["id_piloto"].iloc[0]
-                    sql = "DELETE FROM tbl_pilotos WHERE id_piloto = %s"
-                    if executar_comando_sql(sql, (int(id_piloto_del),)):
-                        st.success(f"Piloto '{piloto_del}' deletado!")
-                        st.rerun()
-
-
+            piloto_del = st.selectbox("Selecione o Piloto a ser deletado", options=pilotos_del_df["nome_completo"], index=None, placeholder="Selecione um piloto...")
+            if piloto_del and st.button(f"DELETAR {piloto_del}", type="primary"):
+                id_piloto_del = int(pilotos_del_df[pilotos_del_df["nome_completo"] == piloto_del]["id_piloto"].iloc[0])
+                if executar_comando_sql("DELETE FROM tbl_pilotos WHERE id_piloto = %s", (id_piloto_del,)) is not None:
+                    st.success(f"Piloto '{piloto_del}' deletado!")
+                    st.rerun()
