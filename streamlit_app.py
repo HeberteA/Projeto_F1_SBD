@@ -8,7 +8,7 @@ from datetime import date
 
 
 st.set_page_config(layout="wide", page_title="F1 Super Analytics Pro", page_icon="f1.png")
-F1_PALETTE = ["#E10600", "#7F7F7F", "#6b0000ff", "#B1B1B8", "#FFFFFF"]
+F1_PALETTE = ["#E10600", "#7F7F7F", "#6b0000", "#B1B1B8", "#FFFFFF"]
 F1_RED = F1_PALETTE[0]
 F1_BLACK = F1_PALETTE[2]
 F1_GREY = F1_PALETTE[1]
@@ -521,58 +521,111 @@ def render_hall_da_fama(data):
 
 def render_analise_circuitos(data):
     st.title("🛣️ Análise de Circuitos")
-    circuito_nome = st.selectbox("Selecione um Circuito", options=data['circuits'].sort_values('name')['name'], index=None)
+    st.markdown("---")
+    circuito_nome = st.selectbox(
+        "Selecione um Circuito",
+        options=data['circuits'].sort_values('name')['name'],
+        index=None,
+        placeholder="Digite o nome de um circuito..."
+    )
+
+    if not circuito_nome:
+        st.info("Selecione um circuito para ver suas estatísticas detalhadas.")
+        return
+
+    circuito_info = data['circuits'][data['circuits']['name'] == circuito_nome].iloc[0]
+    id_circuito = circuito_info['circuitId']
     
-    if circuito_nome:
-        circuito_info = data['circuits'][data['circuits']['name'] == circuito_nome].iloc[0]
-        id_circuito = circuito_info['circuitId']
+    races_circuito = data['races'][data['races']['circuitId'] == id_circuito]
+    race_ids_circuito = races_circuito['raceId']
+    results_circuito = data['results_full'][data['results_full']['raceId'].isin(race_ids_circuito)]
+
+    if results_circuito.empty:
+        st.warning(f"Não há dados de resultados detalhados para {circuito_nome}.")
+        return
+
+    primeiro_gp = races_circuito['year'].min()
+    total_gps = races_circuito['raceId'].nunique()
+    vencedores_diferentes = results_circuito[results_circuito['position'] == 1]['driverId'].nunique()
+
+    lap_times_circuito = data['lap_times'][data['lap_times']['raceId'].isin(race_ids_circuito)]
+    if not lap_times_circuito.empty:
+        lap_record_row = lap_times_circuito.loc[lap_times_circuito['milliseconds'].idxmin()]
+        piloto_recordista = data['drivers'][data['drivers']['driverId'] == lap_record_row['driverId']]['driver_name'].iloc[0]
+        tempo_recorde = pd.to_datetime(lap_record_row['time'], format='%M:%S.%f').strftime('%M:%S.%f')[:-3]
+    else:
+        piloto_recordista, tempo_recorde = "N/A", "N/A"
         
-        races_circuito = data['races'][data['races']['circuitId'] == id_circuito]
-        results_circuito = data['results_full'][data['results_full']['raceId'].isin(races_circuito['raceId'])]
-        
-        st.header(circuito_nome)
-        
-        ### NOVOS CARDS ###
-        # Lap Record
-        lap_times_circuito = data['lap_times'][data['lap_times']['raceId'].isin(races_circuito['raceId'])]
-        if not lap_times_circuito.empty:
-            lap_record = lap_times_circuito.loc[lap_times_circuito['milliseconds'].idxmin()]
-            piloto_record = data['drivers'][data['drivers']['driverId'] == lap_record['driverId']]['driver_name'].iloc[0]
-            tempo_record = pd.to_datetime(lap_record['time'], format='%M:%S.%f').strftime('%M:%S.%f')[:-3]
+    pit_stops_circuito = data['pit_stops'][data['pit_stops']['raceId'].isin(race_ids_circuito)]
+    media_pit_stops = pit_stops_circuito.groupby('raceId')['stop'].max().mean()
+
+    poles_no_circuito = data['qualifying'][(data['qualifying']['raceId'].isin(race_ids_circuito)) & (data['qualifying']['position'] == 1)]
+    vitorias_da_pole = poles_no_circuito.merge(results_circuito[results_circuito['position'] == 1], on=['raceId', 'driverId'])
+    perc_win_pole = (len(vitorias_da_pole) / len(poles_no_circuito) * 100) if not poles_no_circuito.empty else 0
+
+    st.header(f"Dossiê do Circuito: {circuito_nome}")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("🌍 País", circuito_info['country'])
+    c2.metric("📍 Localização", circuito_info['location'])
+    c3.metric("🏁 Primeiro GP", f"{primeiro_gp}")
+    c4.metric("🏎️ Total de GPs", f"{total_gps}")
+
+    c5, c6, c7, c8 = st.columns(4)
+    c5.metric("🏆 Vencedores Diferentes", f"{vencedores_diferentes}")
+    c6.metric("⏱️ Recorde da Pista", f"{piloto_recordista} ({tempo_recorde})")
+    c7.metric("🔧 Média de Pit Stops", f"{media_pit_stops:.2f} por piloto")
+    c8.metric("📊 % Vitória da Pole", f"{perc_win_pole:.2f}%")
+    st.markdown("---")
+
+    st.header("Análise Gráfica do Circuito")
+    
+    g1, g2 = st.columns(2)
+    with g1:
+        st.subheader("Reis da Pista (Mais Vitórias)")
+        maiores_vencedores = results_circuito[results_circuito['position'] == 1]['driver_name'].value_counts().nlargest(10)
+        fig = px.bar(maiores_vencedores, y=maiores_vencedores.index, x=maiores_vencedores.values, orientation='h',
+                     color_discrete_sequence=[F1_RED], text=maiores_vencedores.values)
+        fig.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="", xaxis_title="Número de Vitórias")
+        st.plotly_chart(fig, use_container_width=True)
+    with g2:
+        st.subheader("Recordistas de Pole Position")
+        poles_circuito = data['qualifying'][(data['qualifying']['raceId'].isin(race_ids_circuito)) & (data['qualifying']['position'] == 1)]
+        recordistas_pole = poles_circuito.merge(data['drivers'], on='driverId')['driver_name'].value_counts().nlargest(10)
+        fig_poles = px.bar(recordistas_pole, y=recordistas_pole.index, x=recordistas_pole.values, orientation='h',
+                           color_discrete_sequence=[F1_BLACK], text=recordistas_pole.values)
+        fig_poles.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="", xaxis_title="Número de Poles")
+        st.plotly_chart(fig, use_container_width=True)
+    
+    st.markdown("---")
+    
+    st.subheader("Análise: Posição de Largada vs. Posição Final")
+    grid_final_circuito = results_circuito[['grid', 'position']].dropna()
+    grid_final_circuito = grid_final_circuito[(grid_final_circuito['grid'] > 0) & (grid_final_circuito['position'] > 0)]
+    fig_grid_final = px.scatter(grid_final_circuito, x='grid', y='position',
+                                labels={'grid': 'Grid de Largada', 'position': 'Posição Final'},
+                                trendline='ols', trendline_color_override=F1_RED,
+                                color_discrete_sequence=[F1_GREY],
+                                title=f"Correlação entre largar e chegar em {circuito_nome}")
+    st.plotly_chart(fig_grid_final, use_container_width=True)
+    st.markdown("---")
+    
+    g3, g4 = st.columns(2)
+    with g3:
+        st.subheader("De Onde Saem os Vencedores?")
+        pos_grid_vencedores = results_circuito[(results_circuito['position'] == 1) & (results_circuito['grid'] > 0)]
+        fig_grid = px.histogram(pos_grid_vencedores, x='grid', nbins=20, text_auto=True, color_discrete_sequence=[F1_PALETTE])
+        fig_grid.update_layout(xaxis_title="Posição de Largada", yaxis_title="Número de Vitórias")
+        st.plotly_chart(fig_grid, use_container_width=True)
+    with g4:
+        st.subheader("Análise de Pit Stops")
+        if not pit_stops_circuito.empty:
+            fig_pit = px.box(pit_stops_circuito, x='stop', y='duration',
+                             labels={'stop': 'Número da Parada', 'duration': 'Duração do Pit Stop (s)'},
+                             title="Distribuição dos Tempos de Parada",
+                             color_discrete_sequence=F1_PALETTE)
+            st.plotly_chart(fig_pit, use_container_width=True)
         else:
-            piloto_record, tempo_record = "N/A", "N/A"
-
-        dnf_comum = results_circuito[results_circuito['position'].isna()]['status'].value_counts().nlargest(1).index[0]
-
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("🌍 País", circuito_info['country'])
-        c2.metric("📍 Localização", circuito_info['location'])
-        c3.metric("⏱️ Recorde da Pista", f"{piloto_record} ({tempo_record})")
-        c4.metric("💥 Abandono Mais Comum", dnf_comum)
-        st.divider()
-
-        ### NOVOS GRÁFICOS ###
-        g1, g2 = st.columns(2)
-        with g1:
-            st.subheader("Reis da Pista (Mais Vitórias)")
-            maiores_vencedores = results_circuito[results_circuito['position'] == 1]['driver_name'].value_counts().nlargest(10)
-            fig = px.bar(maiores_vencedores, y=maiores_vencedores.index, x=maiores_vencedores.values, orientation='h', color_discrete_sequence=[F1_RED])
-            fig.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="", xaxis_title="Nº de Vitórias")
-            st.plotly_chart(fig, use_container_width=True)
-        with g2:
-            st.subheader("De Onde Saem os Vencedores?")
-            pos_grid_vencedores = results_circuito[(results_circuito['position'] == 1) & (results_circuito['grid'] > 0)]
-            fig_grid = px.histogram(pos_grid_vencedores, x='grid', nbins=20, text_auto=True, color_discrete_sequence=[F1_BLACK])
-            fig_grid.update_layout(xaxis_title="Posição de Largada", yaxis_title="Nº de Vitórias")
-            st.plotly_chart(fig_grid, use_container_width=True)
-
-        st.subheader("Distribuição de Posições Finais por Posição de Largada (Top 10 Grid)")
-        grid_final_df = results_circuito[['grid', 'position']].dropna()
-        grid_final_df = grid_final_df[grid_final_df['grid'].isin(range(1, 11))]
-        fig_box = px.box(grid_final_df, x='grid', y='position', color_discrete_sequence=F1_PALETTE)
-        fig_box.update_yaxes(autorange="reversed")
-        fig_box.update_layout(xaxis_title="Posição de Largada", yaxis_title="Posição Final")
-        st.plotly_chart(fig_box, use_container_width=True)
+            st.info("Não há dados detalhados de pit stops para este circuito.")
 
 def render_pagina_gerenciamento(conn):
     st.title("🔩 Gerenciamento de Pilotos (CRUD)")
