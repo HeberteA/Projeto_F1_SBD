@@ -815,7 +815,13 @@ def render_analise_circuitos(data):
         fig_dnf.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="", xaxis_title="Total de Abandonos (DNF)")
         st.plotly_chart(fig_dnf, use_container_width=True, key="circuit_dnf_chart")
 
-with tab_create:
+def render_pagina_gerenciamento(conn):
+    st.title("🔩 Gerenciamento de Dados (CRUD)")
+    st.info("Esta página cumpre o requisito de operações básicas de CRUD (Criar, Consultar, Atualizar, Excluir) em uma tabela.")
+
+    tab_create, tab_read, tab_update, tab_delete = st.tabs(["➕ Criar Piloto", "🔍 Consultar Dados", "🔄 Atualizar Piloto", "❌ Deletar Piloto"])
+
+    with tab_create:
         st.subheader("Adicionar Novo Piloto")
         nationalities = sorted([
             "Argentine", "Australian", "Austrian", "Belgian", "Brazilian", "British", "Canadian", "Colombian",
