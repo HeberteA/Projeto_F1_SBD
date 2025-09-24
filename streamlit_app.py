@@ -5,7 +5,7 @@ import plotly.express as px
 from streamlit_option_menu import option_menu
 
 # Configuração da página
-st.set_page_config(layout="wide", page_title="F1 Super Analytics", page_icon="f1.png")
+st.set_page_config(layout="wide", page_title="F1 Super Analytics", page_icon="🏎️")
 
 # Paleta de cores padrão da F1
 F1_PALETTE = ["#E10600", "#15151E", "#7F7F7F", "#B1B1B8", "#FFFFFF", "#FF8700", "#00A000"]
@@ -24,7 +24,7 @@ def conectar_db():
         return None
 conn = conectar_db()
 
-@st.cache_data(ttl=60) # Aumentado o cache para 1 hora
+@st.cache_data(ttl=3600) # Aumentado o cache para 1 hora
 def consultar_dados_df(query, params=None):
     if not conn: return pd.DataFrame()
     try:
@@ -36,6 +36,7 @@ def consultar_dados_df(query, params=None):
 def executar_comando_sql(query, params=None):
     if not conn: return None
     try:
+        # Garante que a conexão está ativa antes de usar
         with conn.cursor() as cursor:
             cursor.execute(query, params)
             conn.commit()
@@ -85,7 +86,7 @@ if pagina_selecionada == "Análises":
                     kpi_data = kpi_df.iloc[0]
                     c1, c2, c3, c4, c5, c6 = st.columns(6)
                     c1.metric("🏆 Títulos", int(kpi_data["titulos"]))
-                    c2.metric("🏎️ Corridas", int(kpi_data["total_corridas"]))
+                    c2.metric("Corridas", int(kpi_data["total_corridas"]))
                     c3.metric("🥇 Vitórias", int(kpi_data["vitorias"]))
                     c4.metric("🥈 Pódios", int(kpi_data["podios"]))
                     c5.metric("⏱️ Poles", int(kpi_data["poles"]))
@@ -267,13 +268,15 @@ if pagina_selecionada == "Análises":
             with c1:
                 st.markdown("###### Pilotos com mais vitórias")
                 vitorias_p_df = consultar_dados_df("SELECT p.nome || ' ' || p.sobrenome as piloto, COUNT(*) as vitorias FROM tbl_resultados r JOIN tbl_pilotos p ON r.id_piloto_fk = p.id_piloto WHERE r.posicao_final = 1 GROUP BY piloto ORDER BY vitorias DESC LIMIT 15;")
-                fig = px.bar(vitorias_p_df, x='vitorias', y='piloto', orientation='h', text_auto=True, color_discrete_sequence=[F1_RED]).update_layout(yaxis={'categoryorder':'total ascending'})
-                st.plotly_chart(fig, use_container_width=True)
+                if not vitorias_p_df.empty:
+                    fig = px.bar(vitorias_p_df, x='vitorias', y='piloto', orientation='h', text_auto=True, color_discrete_sequence=[F1_RED]).update_layout(yaxis={'categoryorder':'total ascending'})
+                    st.plotly_chart(fig, use_container_width=True)
             with c2:
                 st.markdown("###### Equipes com mais vitórias")
                 vitorias_e_df = consultar_dados_df("SELECT con.nome as equipe, COUNT(*) as vitorias FROM tbl_resultados r JOIN tbl_construtores con ON r.id_construtor_fk = con.id_construtor WHERE r.posicao_final = 1 GROUP BY equipe ORDER BY vitorias DESC LIMIT 15;")
-                fig = px.bar(vitorias_e_df, x='vitorias', y='equipe', orientation='h', text_auto=True, color_discrete_sequence=[F1_GREY]).update_layout(yaxis={'categoryorder':'total ascending'})
-                st.plotly_chart(fig, use_container_width=True)
+                if not vitorias_e_df.empty:
+                    fig = px.bar(vitorias_e_df, x='vitorias', y='equipe', orientation='h', text_auto=True, color_discrete_sequence=[F1_GREY]).update_layout(yaxis={'categoryorder':'total ascending'})
+                    st.plotly_chart(fig, use_container_width=True)
 
 # --- PÁGINA DE GERENCIAMENTO (CRUD) ---
 elif pagina_selecionada == "Gerenciamento":
