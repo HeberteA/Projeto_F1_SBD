@@ -815,13 +815,7 @@ def render_analise_circuitos(data):
         fig_dnf.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="", xaxis_title="Total de Abandonos (DNF)")
         st.plotly_chart(fig_dnf, use_container_width=True, key="circuit_dnf_chart")
 
-def render_pagina_gerenciamento(conn):
-    st.title("🔩 Gerenciamento de Dados (CRUD)")
-    st.info("Esta página cumpre o requisito de operações básicas de CRUD (Criar, Consultar, Atualizar, Excluir) em uma tabela.")
-
-    tab_create, tab_read, tab_update, tab_delete = st.tabs(["➕ Criar Piloto", "🔍 Consultar Dados", "🔄 Atualizar Piloto", "❌ Deletar Piloto"])
-
-    with tab_create:
+with tab_create:
         st.subheader("Adicionar Novo Piloto")
         nationalities = sorted([
             "Argentine", "Australian", "Austrian", "Belgian", "Brazilian", "British", "Canadian", "Colombian",
@@ -853,13 +847,12 @@ def render_pagina_gerenciamento(conn):
 
     with tab_read:
         st.subheader("Consultar e Filtrar Dados do Banco")
-        
         tabela_selecionada = st.radio(
-            "Selecione a tabela para consultar:",
+            "Selecione qual tabela você quer consultar:",
             ["Pilotos", "Equipes", "Circuitos"],
-            horizontal=True
+            horizontal=True,
+            key="radio_consulta"
         )
-
         try:
             df = pd.DataFrame()
             if tabela_selecionada == "Pilotos":
@@ -905,23 +898,22 @@ def render_pagina_gerenciamento(conn):
             pilotos_df_update = pd.read_sql_query('SELECT "driverId", forename || \' \' || surname as driver_name, code, number, nationality FROM drivers ORDER BY surname', conn)
             pilotos_df_update.dropna(subset=['driverId', 'driver_name'], inplace=True)
             
-            search_update = st.text_input("Buscar piloto para atualizar...", key="search_update")
+            # --- LÓGICA DE BUSCA CORRIGIDA ---
+            search_update = st.text_input("Buscar piloto para atualizar...", placeholder="Digite o nome e pressione Enter", key="search_update")
             if search_update:
-                pilotos_filtrados = pilotos_df_update[pilotos_df_update['driver_name'].str.contains(search_update, case=False)]
+                options_pilotos = pilotos_df_update[pilotos_df_update['driver_name'].str.contains(search_update, case=False)]
             else:
-                pilotos_filtrados = pilotos_df_update
-
-            piloto_selecionado_nome = st.selectbox("Selecione um piloto da lista:", options=pilotos_filtrados['driver_name'], index=None)
+                options_pilotos = pilotos_df_update
+            
+            piloto_selecionado_nome = st.selectbox("Selecione um piloto da lista:", options=options_pilotos['driver_name'], index=None)
             
             if piloto_selecionado_nome:
                 piloto_info = pilotos_df_update[pilotos_df_update['driver_name'] == piloto_selecionado_nome].iloc[0]
                 id_piloto = int(piloto_info['driverId'])
-
                 st.write("---")
                 novo_codigo = st.text_input("Código (3 letras)", value=piloto_info['code'] or "", max_chars=3, key=f"code_{id_piloto}")
                 novo_numero = st.number_input("Número do Piloto", value=int(piloto_info['number']) if pd.notna(piloto_info['number']) else None, min_value=0, max_value=99, step=1, key=f"number_{id_piloto}")
                 nova_nacionalidade = st.text_input("Nacionalidade", value=piloto_info['nationality'] or "", key=f"nat_{id_piloto}")
-
                 if st.button("Salvar Alterações"):
                     st.success(f"Dados do piloto {piloto_selecionado_nome} atualizados com sucesso!")
                     st.rerun()
@@ -936,13 +928,13 @@ def render_pagina_gerenciamento(conn):
             pilotos_df_delete = pd.read_sql_query("SELECT \"driverId\", forename || ' ' || surname as driver_name FROM drivers ORDER BY surname", conn)
             pilotos_df_delete.dropna(subset=['driverId', 'driver_name'], inplace=True)
 
-            search_delete = st.text_input("Buscar piloto para deletar...", key="search_delete")
+            search_delete = st.text_input("Buscar piloto para deletar...", placeholder="Digite o nome e pressione Enter", key="search_delete")
             if search_delete:
-                pilotos_filtrados_del = pilotos_df_delete[pilotos_df_delete['driver_name'].str.contains(search_delete, case=False)]
+                options_pilotos_del = pilotos_df_delete[pilotos_df_delete['driver_name'].str.contains(search_delete, case=False)]
             else:
-                pilotos_filtrados_del = pilotos_df_delete
-            
-            piloto_para_deletar = st.selectbox("Selecione um piloto da lista para deletar:", options=pilotos_filtrados_del['driver_name'], index=None, key="delete_select")
+                options_pilotos_del = pilotos_df_delete
+
+            piloto_para_deletar = st.selectbox("Selecione um piloto da lista para deletar:", options=options_pilotos_del['driver_name'], index=None, key="delete_select")
             
             if piloto_para_deletar:
                 id_piloto_del = int(pilotos_df_delete[pilotos_df_delete['driver_name'] == piloto_para_deletar]['driverId'].iloc[0])
