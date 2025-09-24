@@ -223,6 +223,8 @@ def render_visao_geral(data):
                                 title="Correlação entre largar na frente e terminar bem")
     st.plotly_chart(fig_grid_final, use_container_width=True)
     
+from datetime import date
+
 def render_analise_pilotos(data):
     st.title("🧑‍🚀 Análise de Pilotos")
     st.markdown("---")
@@ -254,6 +256,10 @@ def render_analise_pilotos(data):
     primeiro_ano = res_piloto['year'].min()
     ultimo_ano = res_piloto['year'].max()
 
+    races_com_standings = data['races'].merge(data['driver_standings'], on='raceId')
+    finais_de_ano = races_com_standings.loc[races_com_standings.groupby('year')['round'].idxmax()]
+    campeonatos_vencidos = finais_de_ano[(finais_de_ano['position'] == 1) & (finais_de_ano['driverId'] == id_piloto)].shape[0]
+
     total_corridas = res_piloto['raceId'].nunique()
     total_vitorias = (res_piloto['position'] == 1).sum()
     total_podios = res_piloto['position'].isin([1, 2, 3]).sum()
@@ -267,7 +273,6 @@ def render_analise_pilotos(data):
     perc_podios = (total_podios / total_corridas * 100) if total_corridas > 0 else 0
     media_grid = quali_piloto['position'].mean()
     media_final = res_piloto['position'].dropna().mean()
-    confiabilidade = ((total_corridas - total_dnfs) / total_corridas * 100) if total_corridas > 0 else 0
 
     st.header(f"Dossiê de Carreira: {piloto_nome}")
 
@@ -279,24 +284,25 @@ def render_analise_pilotos(data):
     c4.metric("🔚 Última Temporada", f"{ultimo_ano}")
 
     st.subheader("Números da Carreira")
-    c5, c6, c7, c8 = st.columns(4)
-    c5.metric("🏆 Vitórias", f"{total_vitorias}")
-    c6.metric("🍾 Pódios", f"{total_podios}")
-    c7.metric("⏱️ Pole Positions", f"{total_poles}")
-    c8.metric("🚀 Voltas Rápidas", f"{total_voltas_rapidas}")
+    c5, c6, c7, c8, c9 = st.columns(5)
+    c5.metric("👑 Campeonatos Mundiais", f"{campeonatos_vencidos}") 
+    c6.metric("🥇 Vitórias", f"{total_vitorias}")
+    c7.metric("🍾 Pódios", f"{total_podios}")
+    c8.metric("⏱️ Pole Positions", f"{total_poles}")
+    c9.metric("🚀 Voltas Rápidas", f"{total_voltas_rapidas}")
 
-    c9, c10, c11, c12 = st.columns(4)
-    c9.metric("💯 Pontos Totais", f"{total_pontos:,.0f}")
-    c10.metric("🏎️ Corridas Disputadas", f"{total_corridas}")
-    c11.metric("🔄 Total de Voltas", f"{total_voltas_corridas:,.0f}")
-    c12.metric("💥 Total de Abandonos", f"{total_dnfs}")
+    c10, c11, c12, c13 = st.columns(4)
+    c10.metric("💯 Pontos Totais", f"{total_pontos:,.0f}")
+    c11.metric("🏎️ Corridas Disputadas", f"{total_corridas}")
+    c12.metric("🔄 Total de Voltas", f"{total_voltas_corridas:,.0f}")
+    c13.metric("💥 Total de Abandonos", f"{total_dnfs}")
 
     st.subheader("Métricas de Performance")
-    c13, c14, c15, c16 = st.columns(4)
-    c13.metric("📊 % de Vitórias", f"{perc_vitorias:.2f}%")
-    c14.metric("📈 % de Pódios", f"{perc_podios:.2f}%")
-    c15.metric("📉 Média de Largada", f"{media_grid:.2f}")
-    c16.metric("📈 Média de Chegada", f"{media_final:.2f}")
+    c14, c15, c16, c17 = st.columns(4)
+    c14.metric("📊 % de Vitórias", f"{perc_vitorias:.2f}%")
+    c15.metric("📈 % de Pódios", f"{perc_podios:.2f}%")
+    c16.metric("📉 Média de Largada", f"{media_grid:.2f}")
+    c17.metric("📈 Média de Chegada", f"{media_final:.2f}")
 
     st.markdown("---")
 
@@ -329,15 +335,18 @@ def render_analise_pilotos(data):
     with g2:
         st.subheader("Desempenho Anual")
         standings_piloto = data['driver_standings'][data['driver_standings']['driverId'] == id_piloto]
-        races_com_standings = data['races'].merge(standings_piloto, on='raceId')
-        pos_final_ano = races_com_standings.loc[races_com_standings.groupby('year')['round'].idxmax()]
-        
-        fig_champ = px.line(pos_final_ano, x='year', y='position', markers=True, 
-                            title="Posição Final no Campeonato por Ano",
-                            labels={'year': 'Temporada', 'position': 'Posição Final'},
-                            color_discrete_sequence=[F1_RED])
-        fig_champ.update_yaxes(autorange="reversed")
-        st.plotly_chart(fig_champ, use_container_width=True)
+        if not standings_piloto.empty:
+            races_com_standings = data['races'].merge(standings_piloto, on='raceId')
+            pos_final_ano = races_com_standings.loc[races_com_standings.groupby('year')['round'].idxmax()]
+            
+            fig_champ = px.line(pos_final_ano, x='year', y='position', markers=True, 
+                                title="Posição Final no Campeonato por Ano",
+                                labels={'year': 'Temporada', 'position': 'Posição Final'},
+                                color_discrete_sequence=[F1_BLACK])
+            fig_champ.update_yaxes(autorange="reversed")
+            st.plotly_chart(fig_champ, use_container_width=True)
+        else:
+            st.info("Dados de classificação anual não disponíveis para este piloto.")
     
     st.markdown("---")
 
@@ -364,7 +373,7 @@ def render_analise_pilotos(data):
     grid_final_piloto = grid_final_piloto[(grid_final_piloto['grid'] > 0) & (grid_final_piloto['position'] > 0)]
     fig_grid_final = px.scatter(grid_final_piloto, x='grid', y='position',
                                 labels={'grid': 'Grid de Largada', 'position': 'Posição Final'},
-                                trendline='ols', trendline_color_override=F1_WHITE,
+                                trendline='ols', trendline_color_override=[F1_WHITE],
                                 color_discrete_sequence=[F1_RED],
                                 title=f"Correlação entre largar e chegar ({len(grid_final_piloto)} corridas)")
     st.plotly_chart(fig_grid_final, use_container_width=True)
@@ -811,14 +820,12 @@ def render_pagina_gerenciamento(conn):
     st.title("🔩 Gerenciamento de Pilotos (CRUD)")
     st.info("Esta página cumpre o requisito de operações básicas de CRUD (Criar, Consultar, Atualizar, Excluir) em uma tabela.")
 
-    # CORREÇÃO: Todas as colunas em minúsculas nas queries para corresponder ao PostgreSQL
     tab_create, tab_read, tab_update, tab_delete = st.tabs(["➕ Criar Piloto", "🔍 Consultar Pilotos", "🔄 Atualizar Piloto", "❌ Deletar Piloto"])
 
     with tab_read:
         st.subheader("Consultar Tabela de Pilotos")
         try:
-            # Usando nomes de colunas em minúsculas
-            pilotos_df = pd.read_sql_query("SELECT driverid, driverref, code, forename, surname, dob, nationality FROM drivers ORDER BY surname", conn)
+            pilotos_df = pd.read_sql_query('SELECT "driverId", "driverRef", code, forename, surname, dob, nationality FROM drivers ORDER BY surname', conn)
             st.dataframe(pilotos_df, use_container_width=True)
         except Exception as e:
             st.error(f"Não foi possível consultar os pilotos: {e}")
@@ -826,41 +833,58 @@ def render_pagina_gerenciamento(conn):
     with tab_create:
         st.subheader("Adicionar Novo Piloto")
         with st.form("form_create", clear_on_submit=True):
+            st.write("Insira os dados do novo piloto.")
             forename = st.text_input("Nome (Forename)")
             surname = st.text_input("Sobrenome (Surname)")
             driverref = st.text_input("Referência Única (ex: 'hamilton')")
             code = st.text_input("Código de 3 letras (ex: 'HAM')", max_chars=3)
             dob = st.date_input("Data de Nascimento")
             nationality = st.text_input("Nacionalidade")
+            
             submitted = st.form_submit_button("Adicionar Piloto")
             if submitted:
-                query = "INSERT INTO drivers (driverref, code, forename, surname, dob, nationality) VALUES (%s, %s, %s, %s, %s, %s)"
-                if executar_comando_sql(conn, query, (driverref, code.upper(), forename, surname, dob, nationality)):
-                    st.success(f"Piloto {forename} {surname} adicionado com sucesso!")
+                if all([forename, surname, driverref, dob, nationality]):
+                    query = 'INSERT INTO drivers ("driverRef", code, forename, surname, dob, nationality) VALUES (%s, %s, %s, %s, %s, %s)'
+                    if executar_comando_sql(conn, query, (driverref, code.upper(), forename, surname, dob, nationality)):
+                        st.success(f"Piloto {forename} {surname} adicionado com sucesso!")
+                else:
+                    st.warning("Por favor, preencha todos os campos.")
 
     with tab_update:
         st.subheader("Atualizar Nacionalidade de um Piloto")
-        pilotos_df_update = pd.read_sql_query("SELECT driverid, forename || ' ' || surname as driver_name FROM drivers ORDER BY surname", conn)
-        piloto_sel = st.selectbox("Selecione um piloto para atualizar", options=pilotos_df_update['driver_name'], index=None)
-        if piloto_sel:
-            id_piloto = int(pilotos_df_update[pilotos_df_update['driver_name'] == piloto_sel]['driverid'].iloc[0])
-            nova_nac = st.text_input("Digite a nova nacionalidade", key=f"update_nac_{id_piloto}")
-            if st.button("Atualizar Nacionalidade"):
-                query = "UPDATE drivers SET nationality = %s WHERE driverid = %s"
-                if executar_comando_sql(conn, query, (nova_nac, id_piloto)):
-                    st.success(f"Nacionalidade do piloto {piloto_sel} atualizada com sucesso!")
+        try:
+            pilotos_df_update = pd.read_sql_query("SELECT \"driverId\", forename || ' ' || surname as driver_name FROM drivers ORDER BY surname", conn)
+            piloto_selecionado = st.selectbox("Selecione um piloto para atualizar", options=pilotos_df_update['driver_name'], index=None)
+            
+            if piloto_selecionado:
+                id_piloto = int(pilotos_df_update[pilotos_df_update['driver_name'] == piloto_selecionado]['driverId'].iloc[0])
+                nova_nacionalidade = st.text_input("Digite a nova nacionalidade")
+                if st.button("Atualizar Nacionalidade"):
+                    if nova_nacionalidade:
+                        query = 'UPDATE drivers SET nationality = %s WHERE "driverId" = %s'
+                        if executar_comando_sql(conn, query, (nova_nacionalidade, id_piloto)):
+                            st.success(f"Nacionalidade do piloto {piloto_selecionado} atualizada com sucesso!")
+                    else:
+                        st.warning("O campo de nova nacionalidade não pode estar vazio.")
+        except Exception as e:
+            st.error(f"Não foi possível carregar os pilotos para atualização: {e}")
+
 
     with tab_delete:
         st.subheader("Deletar um Piloto")
-        st.warning("CUIDADO: Ação irreversível.", icon="⚠️")
-        pilotos_df_del = pd.read_sql_query("SELECT driverid, forename || ' ' || surname as driver_name FROM drivers ORDER BY surname", conn)
-        piloto_del = st.selectbox("Selecione um piloto para deletar", options=pilotos_df_del['driver_name'], index=None, key="del_sel")
-        if piloto_del:
-            id_piloto_del = int(pilotos_df_del[pilotos_df_del['driver_name'] == piloto_del]['driverid'].iloc[0])
-            if st.button(f"DELETAR PERMANENTEMENTE {piloto_del}", type="primary"):
-                query = "DELETE FROM drivers WHERE driverid = %s"
-                if executar_comando_sql(conn, query, (id_piloto_del,)):
-                    st.success(f"Piloto {piloto_del} deletado com sucesso!")
+        st.warning("CUIDADO: Esta ação é irreversível.", icon="⚠️")
+        try:
+            pilotos_df_delete = pd.read_sql_query("SELECT \"driverId\", forename || ' ' || surname as driver_name FROM drivers ORDER BY surname", conn)
+            piloto_para_deletar = st.selectbox("Selecione um piloto para deletar", options=pilotos_df_delete['driver_name'], index=None, key="delete_select")
+            
+            if piloto_para_deletar:
+                id_piloto_del = int(pilotos_df_delete[pilotos_df_delete['driver_name'] == piloto_para_deletar]['driverId'].iloc[0])
+                if st.button(f"DELETAR PERMANENTEMENTE {piloto_para_deletar}", type="primary"):
+                    query = 'DELETE FROM drivers WHERE "driverId" = %s'
+                    if executar_comando_sql(conn, query, (id_piloto_del,)):
+                        st.success(f"Piloto {piloto_para_deletar} deletado com sucesso!")
+        except Exception as e:
+            st.error(f"Não foi possível carregar os pilotos para deleção: {e}")
 def main():
     with st.sidebar:
         st.image("f1_logo.png", width=300)
