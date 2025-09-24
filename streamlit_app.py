@@ -817,21 +817,27 @@ def render_analise_circuitos(data):
 
 def render_pagina_gerenciamento(conn):
     st.title("🔩 Gerenciamento de Dados (CRUD)")
-    st.info("Operações de Criar, Consultar, Atualizar e Deletar na tabela 'tbl_pilotos'.")
+    st.info("Esta página cumpre o requisito de operações básicas de CRUD (Criar, Consultar, Atualizar, Excluir) em uma tabela.")
 
     try:
         pilotos_df_completo = pd.read_sql_query('SELECT id_piloto, ref_piloto, codigo, numero, nome, sobrenome, data_nascimento, nacionalidade FROM tbl_pilotos ORDER BY sobrenome', conn)
- 
         pilotos_df_completo.dropna(subset=['id_piloto', 'nome', 'sobrenome'], inplace=True)
         pilotos_df_completo['nome_completo'] = pilotos_df_completo['nome'] + ' ' + pilotos_df_completo['sobrenome']
     except Exception as e:
         st.error(f"Não foi possível carregar os dados dos pilotos do banco: {e}")
-        return 
+        return
 
     tab_create, tab_read, tab_update, tab_delete = st.tabs(["➕ Criar Piloto", "🔍 Consultar Pilotos", "🔄 Atualizar Piloto", "❌ Deletar Piloto"])
 
     with tab_create:
         st.subheader("Adicionar Novo Piloto")
+        nationalities = sorted([
+            "Argentine", "Australian", "Austrian", "Belgian", "Brazilian", "British", "Canadian", "Colombian",
+            "Danish", "Dutch", "Finnish", "French", "German", "Hungarian", "Indian", "Irish", "Italian",
+            "Japanese", "Malaysian", "Mexican", "Monegasque", "New Zealander", "Polish", "Portuguese",
+            "Russian", "South African", "Spanish", "Swedish", "Swiss", "Thai", "American", "Venezuelan"
+        ])
+
         with st.form("form_create", clear_on_submit=True):
             nome = st.text_input("Nome")
             sobrenome = st.text_input("Sobrenome")
@@ -839,17 +845,35 @@ def render_pagina_gerenciamento(conn):
             numero = st.number_input("Número do Piloto", min_value=0, max_value=99, step=1, value=None)
             codigo = st.text_input("Código de 3 letras (ex: 'HAM')", max_chars=3)
             data_nascimento = st.date_input("Data de Nascimento")
-            nacionalidade = st.text_input("Nacionalidade")
+            nacionalidade = st.selectbox("Nacionalidade", options=nationalities, index=None, placeholder="Selecione...")
             
             if st.form_submit_button("Adicionar Piloto"):
-                query = 'INSERT INTO tbl_pilotos (ref_piloto, numero, codigo, nome, sobrenome, data_nascimento, nacionalidade) VALUES (%s, %s, %s, %s, %s, %s, %s)'
-                if executar_comando_sql(conn, query, (ref_piloto, numero, codigo.upper(), nome, sobrenome, data_nascimento, nacionalidade)):
-                    st.success(f"Piloto {nome} {sobrenome} adicionado!")
-                    st.rerun()
+                if all([nome, sobrenome, ref_piloto, data_nascimento, nacionalidade, codigo]):
+                    try:
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT MAX(id_piloto) FROM tbl_pilotos")
+                        max_id = cursor.fetchone()[0]
+                        novo_id = (max_id or 0) + 1
+                        
+                        query = 'INSERT INTO tbl_pilotos (id_piloto, ref_piloto, numero, codigo, nome, sobrenome, data_nascimento, nacionalidade) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)'
+                        params = (novo_id, ref_piloto, numero, codigo.upper(), nome, sobrenome, data_nascimento, nacionalidade)
+                        
+                        cursor.execute(query, params)
+                        conn.commit()
+                        cursor.close()
+                        
+                        st.success(f"Piloto {nome} {sobrenome} adicionado com SUCESSO!")
+                        st.rerun()
+
+                    except Exception as e:
+                        conn.rollback()
+                        st.error(f"Falha ao adicionar piloto no banco de dados: {e}")
+                else:
+                    st.warning("Por favor, preencha todos os campos obrigatórios.")
 
     with tab_read:
         st.subheader("Consultar e Filtrar Pilotos")
-        search_term = st.text_input("Buscar por nome, sobrenome ou código...", key="search_pilotos")
+        search_term = st.selectbox("Selecione um piloto para procurar", options=pilotos_df_completo['nome_completo'], index=None)
         
         df_display = pilotos_df_completo
         if search_term:
@@ -859,13 +883,10 @@ def render_pagina_gerenciamento(conn):
                 df_display['sobrenome'].str.lower().contains(search_term) |
                 df_display['codigo'].str.lower().contains(search_term, na=False)
             ]
-        
         st.dataframe(df_display, use_container_width=True, hide_index=True)
-
 
     with tab_update:
         st.subheader("Atualizar Dados de um Piloto")
-        
         piloto_selecionado_nome = st.selectbox("Selecione um piloto para atualizar", options=pilotos_df_completo['nome_completo'], index=None)
         
         if piloto_selecionado_nome:
@@ -873,8 +894,11 @@ def render_pagina_gerenciamento(conn):
             id_piloto = int(piloto_info['id_piloto'])
             st.write("---")
             
+            current_number = piloto_info['numero']
+            number_value = int(current_number) if pd.notna(current_number) else None
+
             novo_codigo = st.text_input("Código (3 letras)", value=piloto_info['codigo'] or "", max_chars=3, key=f"code_{id_piloto}")
-            novo_numero = st.number_input("Número do Piloto", value=int(piloto_info['numero']) if pd.notna(piloto_info['numero']) else None, min_value=0, max_value=99, step=1, key=f"number_{id_piloto}")
+            novo_numero = st.number_input("Número do Piloto", value=number_value, min_value=0, max_value=99, step=1, key=f"number_{id_piloto}")
             
             if st.button("Salvar Alterações"):
                 query = 'UPDATE tbl_pilotos SET codigo = %s, numero = %s WHERE id_piloto = %s'
@@ -885,7 +909,6 @@ def render_pagina_gerenciamento(conn):
     with tab_delete:
         st.subheader("Deletar um Piloto")
         st.warning("CUIDADO: Esta ação é irreversível.", icon="⚠️")
-        
         piloto_para_deletar = st.selectbox("Selecione um piloto para deletar", options=pilotos_df_completo['nome_completo'], index=None, key="delete_select")
         
         if piloto_para_deletar:
