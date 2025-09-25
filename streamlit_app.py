@@ -8,7 +8,7 @@ from datetime import date
 
 
 st.set_page_config(layout="wide", page_title="F1 Analytics", page_icon="f1.png")
-F1_PALETTE = ["#ff0800", "#7F7F7F", "#6b0000", "#B1B1B8", "#000000", "#FFFFFF", "#9c0000"]
+F1_PALETTE = ["#ff0800", "#7F7F7F", "#630000", "#B1B1B8", "#8f0000", "#FFFFFF", "#b60000ff"]
 F1_RED = F1_PALETTE[0]
 F1_BLACK = F1_PALETTE[4]
 F1_GREY = F1_PALETTE[1]
@@ -747,7 +747,7 @@ def render_analise_construtores(data):
         g1, g2 = st.columns(2)
         with g1:
             st.markdown("**Motivos de Abandono (DNF)**")
-            dnf_reasons = results_construtor['position'].isna()['status'].value_counts().nlargest(10)
+            dnf_reasons = results_construtor[results_construtor['position'].isna()]['status'].value_counts().nlargest(10)
             fig_dnf = px.bar(dnf_reasons, y=dnf_reasons.index, x=dnf_reasons.values, orientation='h', color_discrete_sequence=[F1_GREY], text=dnf_reasons.values)
             st.plotly_chart(fig_dnf, use_container_width=True)
         with g2:
