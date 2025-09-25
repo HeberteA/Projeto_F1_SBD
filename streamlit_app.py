@@ -8,7 +8,7 @@ from datetime import date
 
 
 st.set_page_config(layout="wide", page_title="F1 Analytics", page_icon="f1.png")
-F1_PALETTE = ["#ff0800", "#7F7F7F", "#630000", "#B1B1B8", "#8f0000", "#FFFFFF", "#b60000"]
+F1_PALETTE = ["#ff0800", "#7F7F7F", "#4e0000", "#B1B1B8", "#a30000", "#FFFFFF", "#b60000"]
 F1_RED = F1_PALETTE[0]
 F1_BLACK = F1_PALETTE[4]
 F1_GREY = F1_PALETTE[1]
@@ -600,15 +600,28 @@ def render_analise_construtores(data):
         c2.metric("🍾 Pódios", total_podios)
         c3.metric("⏱️ Poles", total_poles)
         c4.metric("💯 Pontos Totais", f"{results_construtor['points'].sum():,.0f}")
-        
+
+
         g1, g2 = st.columns(2)
         with g1:
+            st.markdown("**Vitórias por Temporada**")
+            vitorias_ano = results_construtor[results_construtor['position'] == 1].groupby('year').size().reset_index(name='count')
+            fig = px.bar(vitorias_ano, x='year', y='count', text='count', color_discrete_sequence=[F1_RED])
+            st.plotly_chart(fig, use_container_width=True, key="constructor_wins_year")
+        with g2:
+            st.markdown("**Pódios por Temporada**")
+            podios_ano = results_construtor[results_construtor['position'].isin([1,2,3])].groupby('year').size().reset_index(name='count')
+            fig = px.bar(podios_ano, x='year', y='count', text='count', color_discrete_sequence=[F1_GREY])
+            st.plotly_chart(fig, use_container_width=True, key="constructor_podiums_year")
+
+        g3, g4 = st.columns(2)
+        with g3:
             st.markdown("**Resumo de Resultados**")
             results_construtor['categoria_resultado'] = results_construtor['position'].apply(lambda pos: 'Vitória' if pos == 1 else ('Pódio (2-3)' if pos in [2,3] else ('Pontos (4-10)' if 4 <= pos <= 10 else ('Não Pontuou' if pd.notna(pos) else 'DNF'))))
             resultado_counts = results_construtor['categoria_resultado'].value_counts()
             fig_pie = px.pie(resultado_counts, values=resultado_counts.values, names=resultado_counts.index, hole=0.4, color=resultado_counts.index, color_discrete_sequence=F1_PALETTE)
             st.plotly_chart(fig_pie, use_container_width=True)
-        with g2:
+        with g4:
             st.markdown("**Posição no Campeonato (Ano a Ano)**")
             standings_construtor_data = data['constructor_standings'][data['constructor_standings']['constructorId'] == id_construtor]
             if not standings_construtor_data.empty:
@@ -618,13 +631,13 @@ def render_analise_construtores(data):
                 fig_champ.update_yaxes(autorange="reversed")
                 st.plotly_chart(fig_champ, use_container_width=True)
 
-        g3, g4 = st.columns(2)
-        with g3:
+        g5, g6 = st.columns(2)
+        with g5:
             st.markdown("**Vitórias por Circuito (Top 10)**")
             vitorias_circuito = results_construtor[results_construtor['position'] == 1]['gp_name'].value_counts().nlargest(10)
             fig_circ = px.bar(vitorias_circuito, x=vitorias_circuito.values, y=vitorias_circuito.index, orientation='h', text=vitorias_circuito.values, color_discrete_sequence=[F1_RED])
             st.plotly_chart(fig_circ, use_container_width=True)
-        with g4:
+        with g6:
             st.markdown("**Poles por Circuito (Top 10)**")
             poles_circuito = results_construtor[results_construtor['grid'] == 1]['gp_name'].value_counts().nlargest(10)
             fig_poles = px.bar(poles_circuito, x=poles_circuito.values, y=poles_circuito.index, orientation='h', text=poles_circuito.values, color_discrete_sequence=[F1_BLACK])
@@ -662,8 +675,9 @@ def render_analise_construtores(data):
         pontos_piloto_ano = results_construtor.groupby(['year', 'driver_name'])['points'].sum().reset_index()
         fig_pilotos = px.bar(pontos_piloto_ano, x='year', y='points', color='driver_name',
                              labels={'year':'Temporada', 'points':'Pontos', 'driver_name':'Piloto'},
-                             color_discrete_sequence=px.colors.qualitative.Plotly)
-        st.plotly_chart(fig_pilotos, use_container_width=True)
+                             color_discrete_sequence=F1_PALETTE) # <-- CORREÇÃO DA PALETA DE CORES
+        st.plotly_chart(fig_pilotos, use_container_width=True, key="constructor_teammate_battle")
+
 
         g1, g2, g3 = st.columns(3)
         with g1:
@@ -705,12 +719,12 @@ def render_analise_construtores(data):
             dnfs_ano = results_construtor[results_construtor['position'].isna()].groupby('year').size().reindex(entradas_ano.index, fill_value=0)
             conf_ano = ((entradas_ano - dnfs_ano) / entradas_ano * 100)
             fig_conf_ano = px.line(conf_ano, x=conf_ano.index, y=conf_ano.values, labels={'y': '% de Confiabilidade', 'x': 'Temporada'}, markers=True, color_discrete_sequence=[F1_BLACK])
-            st.plotly_chart(fig_conf_ano, use_container_width=True)
+            st.plotly_chart(fig_conf_ano, use_container_width=True, key="constructor_reliability_line")
         with g2:
             st.markdown("**Motivos de Abandono (DNF)**")
             dnf_reasons = results_construtor[results_construtor['position'].isna()]['status'].value_counts().nlargest(10)
             fig_dnf = px.bar(dnf_reasons, y=dnf_reasons.index, x=dnf_reasons.values, orientation='h', color_discrete_sequence=[F1_GREY], text=dnf_reasons.values)
-            st.plotly_chart(fig_dnf, use_container_width=True)
+            st.plotly_chart(fig_dnf, use_container_width=True, key="constructor_dnf_reasons")
             
         g3, g4 = st.columns(2)
         with g3:
