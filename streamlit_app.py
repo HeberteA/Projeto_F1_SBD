@@ -402,14 +402,14 @@ def render_analise_pilotos(data):
 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("🌍 Nacionalidade", piloto_info['nationality'])
-        c2.metric("🎂 Idade", f"{idade} anos")
+        c2.metric("🎂 Idade (se vivo)", f"{idade} anos")
         c3.metric("🏁 Primeira Temporada", f"{primeiro_ano}")
         c4.metric("🔚 Última Temporada", f"{ultimo_ano}")
 
         st.subheader("Números da Carreira")
-        races_com_standings = data['races'].merge(data['driver_standings'], on='raceId')
-        finais_de_ano = races_com_standings.loc[races_com_standings.groupby('year')['date'].idxmax()]
-        campeonatos_vencidos = finais_de_ano[(finais_de_ano['position'] == 1) & (finais_de_ano['driverId'] == id_piloto)].shape[0]
+        pontos_por_ano_piloto = data['results_full'].groupby(['year', 'driverId'])['points'].sum().reset_index()
+        indices_campeoes = pontos_por_ano_piloto.loc[pontos_por_ano_piloto.groupby('year')['points'].idxmax()]
+        campeonatos_vencidos = indices_campeoes[indices_campeoes['driverId'] == id_piloto].shape[0]
 
         total_corridas = res_piloto['raceId'].nunique()
         total_vitorias = (res_piloto['position'] == 1).sum()
@@ -498,7 +498,7 @@ def render_analise_pilotos(data):
             st.plotly_chart(fig_circ, use_container_width=True)
         with g2:
             st.markdown("**Circuitos com Mais Poles**")
-            poles_circuito = quali_piloto[quali_piloto['position'] == 1].merge(data['races'], on='raceId')['gp_name'].value_counts().nlargest(10).sort_values()
+            poles_circuito = quali_piloto[quali_piloto['position'] == 1].merge(data['races'], on='raceId')['name'].value_counts().nlargest(10).sort_values()
             fig_poles_circ = px.bar(poles_circuito, y=poles_circuito.index, x=poles_circuito.values, orientation='h', color_discrete_sequence=[F1_BLACK], text=poles_circuito.values)
             st.plotly_chart(fig_poles_circ, use_container_width=True)
 
