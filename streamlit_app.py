@@ -747,7 +747,7 @@ def render_analise_construtores(data):
         g1, g2 = st.columns(2)
         with g1:
             st.markdown("**Motivos de Abandono (DNF)**")
-            dnf_reasons = results_construtor['position'].isna()]['status'].value_counts().nlargest(10)
+            dnf_reasons = results_construtor['position'].isna()['status'].value_counts().nlargest(10)
             fig_dnf = px.bar(dnf_reasons, y=dnf_reasons.index, x=dnf_reasons.values, orientation='h', color_discrete_sequence=[F1_GREY], text=dnf_reasons.values)
             st.plotly_chart(fig_dnf, use_container_width=True)
         with g2:
