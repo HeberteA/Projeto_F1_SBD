@@ -71,12 +71,9 @@ def carregar_todos_os_dados(_conn):
         data['drivers']['driver_name'] = data['drivers']['forename'] + ' ' + data['drivers']['surname']
         
         numeric_cols = {
-            'races': ['year', 'round'],
-            'results': ['points', 'position', 'grid', 'rank', 'laps'],
-            'pit_stops': ['milliseconds', 'stop', 'lap'],
-            'driver_standings': ['points', 'position'],
-            'constructor_standings': ['points', 'position'],
-            'lap_times': ['milliseconds', 'position', 'lap'],
+            'races': ['year', 'round'], 'results': ['points', 'position', 'grid', 'rank', 'laps'],
+            'pit_stops': ['milliseconds', 'stop', 'lap'], 'driver_standings': ['points', 'position'],
+            'constructor_standings': ['points', 'position'], 'lap_times': ['milliseconds', 'position', 'lap'],
             'qualifying': ['position']
         }
 
@@ -106,10 +103,7 @@ def render_visao_geral(data):
     st.title("🏁 Visão Geral da Temporada")
     st.markdown("---")
 
-    ano_selecionado = st.selectbox(
-        "Selecione a Temporada",
-        options=sorted(data['races']['year'].unique(), reverse=True)
-    )
+    ano_selecionado = st.selectbox("Selecione a Temporada", options=sorted(data['races']['year'].unique(), reverse=True))
 
     races_ano = data['races'][data['races']['year'] == ano_selecionado]
     race_ids_ano = races_ano['raceId']
@@ -125,34 +119,27 @@ def render_visao_geral(data):
     standings_final_constr = data['constructor_standings'][data['constructor_standings']['raceId'] == id_ultima_corrida]
     campeao_constr_nome = data['constructors'][data['constructors']['constructorId'] == standings_final_constr[standings_final_constr['position'] == 1]['constructorId'].iloc[0]]['name'].iloc[0]
     
-    vencedores_unicos = results_full_ano[results_full_ano['position'] == 1]['driverId'].nunique()
-    poles_unicos = data['qualifying'][(data['qualifying']['raceId'].isin(race_ids_ano)) & (data['qualifying']['position'] == 1)]['driverId'].nunique()
-    
-    pit_stops_ano = data['pit_stops'][data['pit_stops']['raceId'].isin(race_ids_ano)]
-    fastest_pit_stop = pit_stops_ano.loc[pit_stops_ano['milliseconds'].idxmin()] if not pit_stops_ano.empty else None
-    
     laps_led_ano = results_full_ano[results_full_ano['laps'] > 0]
     piloto_mais_voltas_lideradas = laps_led_ano.groupby('driver_name')['laps'].sum().nlargest(1)
-    
+    equipe_mais_vitorias = results_full_ano[results_full_ano['position'] == 1]['constructor_name'].value_counts().nlargest(1)
+
     st.subheader(f"Destaques da Temporada de {ano_selecionado}")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("🏆 Campeão de Pilotos", campeao_piloto_nome)
     c2.metric("🏎️ Campeão de Construtores", campeao_constr_nome)
-    c3.metric("🥇 Vencedores Diferentes", f"{vencedores_unicos} pilotos")
-    c4.metric("⏱️ Pole Sitters Diferentes", f"{poles_unicos} pilotos")
+    c3.metric("🥇 Vencedores Diferentes", results_full_ano[results_full_ano['position'] == 1]['driverId'].nunique())
+    if not piloto_mais_voltas_lideradas.empty:
+        c4.metric("👑 Liderou Mais Voltas", f"{piloto_mais_voltas_lideradas.index[0]} ({int(piloto_mais_voltas_lideradas.values[0])})")
 
     c5, c6, c7, c8 = st.columns(4)
     c5.metric("🏁 Total de Corridas", races_ano['raceId'].nunique())
+    poles_unicos = data['qualifying'][(data['qualifying']['raceId'].isin(race_ids_ano)) & (data['qualifying']['position'] == 1)]['driverId'].nunique()
+    c6.metric("⏱️ Pole Sitters Diferentes", poles_unicos)
+    if not equipe_mais_vitorias.empty:
+        c7.metric("🏆 Equipe com Mais Vitórias", f"{equipe_mais_vitorias.index[0]} ({equipe_mais_vitorias.values[0]})")
     total_dnfs = results_full_ano['position'].isna().sum()
-    c6.metric("💥 Total de Abandonos (DNF)", f"{total_dnfs} carros")
-    if not piloto_mais_voltas_lideradas.empty:
-        c7.metric("👑 Liderou Mais Voltas", f"{piloto_mais_voltas_lideradas.index[0]} ({int(piloto_mais_voltas_lideradas.values[0])})")
-    if fastest_pit_stop is not None:
-        equipe_pit_stop_row = results_full_ano[results_full_ano['driverId'] == fastest_pit_stop['driverId']]
-        if not equipe_pit_stop_row.empty:
-            equipe_pit_stop = equipe_pit_stop_row['constructor_name'].iloc[0]
-            c8.metric("🔧 Pit Stop Mais Rápido", f"{equipe_pit_stop} ({fastest_pit_stop['duration']:.3f}s)")
-            
+    c8.metric("💥 Total de Abandonos (DNF)", f"{total_dnfs} carros")
+    st.markdown("---")
     tab1, tab2, tab3, tab4 = st.tabs([
         "Resumo do Campeonato", "Análise de Performance", 
         "Análise de Qualificação", "Estratégia e Confiabilidade"
