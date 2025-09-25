@@ -89,10 +89,10 @@ def carregar_todos_os_dados(_conn):
             data['pit_stops']['duration'] = data['pit_stops']['milliseconds'] / 1000
         
         if all(k in data for k in ['results', 'races', 'drivers', 'constructors', 'status']):
-            data['results_full'] = data['results'].merge(data['races'], on='raceId', suffixes=('', '_race'))\
-                                              .merge(data['drivers'], on='driverId')\
-                                              .merge(data['constructors'], on='constructorId')\
-                                              .merge(data['status'], on='statusId')
+            data['results_full'] = data['results'].merge(data['races'], on='raceId')\
+                                                  .merge(data['drivers'], on='driverId')\
+                                                  .merge(data['constructors'], on='constructorId')\
+                                                  .merge(data['status'], on='statusId')
             
             data['results_full'].rename(columns={'name_x': 'gp_name', 'name_y': 'constructor_name', 'nationality_x': 'driver_nationality', 'nationality_y': 'constructor_nationality'}, inplace=True)
         
@@ -106,7 +106,10 @@ def render_visao_geral(data):
     st.title("🏁 Visão Geral da Temporada")
     st.markdown("---")
 
-    ano_selecionado = st.selectbox("Selecione a Temporada", options=sorted(data['races']['year'].unique(), reverse=True))
+    ano_selecionado = st.selectbox(
+        "Selecione a Temporada",
+        options=sorted(data['races']['year'].unique(), reverse=True)
+    )
 
     races_ano = data['races'][data['races']['year'] == ano_selecionado]
     race_ids_ano = races_ano['raceId']
@@ -122,83 +125,125 @@ def render_visao_geral(data):
     standings_final_constr = data['constructor_standings'][data['constructor_standings']['raceId'] == id_ultima_corrida]
     campeao_constr_nome = data['constructors'][data['constructors']['constructorId'] == standings_final_constr[standings_final_constr['position'] == 1]['constructorId'].iloc[0]]['name'].iloc[0]
     
+    vencedores_unicos = results_full_ano[results_full_ano['position'] == 1]['driverId'].nunique()
+    poles_unicos = data['qualifying'][(data['qualifying']['raceId'].isin(race_ids_ano)) & (data['qualifying']['position'] == 1)]['driverId'].nunique()
+    
     pit_stops_ano = data['pit_stops'][data['pit_stops']['raceId'].isin(race_ids_ano)]
     fastest_pit_stop = pit_stops_ano.loc[pit_stops_ano['milliseconds'].idxmin()] if not pit_stops_ano.empty else None
     
     laps_led_ano = results_full_ano[results_full_ano['laps'] > 0]
     piloto_mais_voltas_lideradas = laps_led_ano.groupby('driver_name')['laps'].sum().nlargest(1)
-
+    
     st.subheader(f"Destaques da Temporada de {ano_selecionado}")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("🏆 Campeão de Pilotos", campeao_piloto_nome)
     c2.metric("🏎️ Campeão de Construtores", campeao_constr_nome)
-    c3.metric("🥇 Vencedores Diferentes", results_full_ano[results_full_ano['position'] == 1]['driverId'].nunique())
-    if not piloto_mais_voltas_lideradas.empty:
-        c4.metric("👑 Liderou Mais Voltas", f"{piloto_mais_voltas_lideradas.index[0]} ({int(piloto_mais_voltas_lideradas.values[0])})")
+    c3.metric("🥇 Vencedores Diferentes", f"{vencedores_unicos} pilotos")
+    c4.metric("⏱️ Pole Sitters Diferentes", f"{poles_unicos} pilotos")
 
     c5, c6, c7, c8 = st.columns(4)
     c5.metric("🏁 Total de Corridas", races_ano['raceId'].nunique())
-    poles_unicos = data['qualifying'][(data['qualifying']['raceId'].isin(race_ids_ano)) & (data['qualifying']['position'] == 1)]['driverId'].nunique()
-    c6.metric("⏱️ Pole Sitters Diferentes", poles_unicos)
+    total_dnfs = results_full_ano['position'].isna().sum()
+    c6.metric("💥 Total de Abandonos (DNF)", f"{total_dnfs} carros")
+    if not piloto_mais_voltas_lideradas.empty:
+        c7.metric("👑 Liderou Mais Voltas", f"{piloto_mais_voltas_lideradas.index[0]} ({int(piloto_mais_voltas_lideradas.values[0])})")
     if fastest_pit_stop is not None:
         equipe_pit_stop_row = results_full_ano[results_full_ano['driverId'] == fastest_pit_stop['driverId']]
         if not equipe_pit_stop_row.empty:
             equipe_pit_stop = equipe_pit_stop_row['constructor_name'].iloc[0]
-            c7.metric("🔧 Pit Stop Mais Rápido", f"{equipe_pit_stop} ({fastest_pit_stop['duration']:.3f}s)")
-    total_dnfs = results_full_ano['position'].isna().sum()
-    c8.metric("💥 Total de Abandonos (DNF)", f"{total_dnfs} carros")
-    st.markdown("---")
+            c8.metric("🔧 Pit Stop Mais Rápido", f"{equipe_pit_stop} ({fastest_pit_stop['duration']:.3f}s)")
+            
     tab1, tab2, tab3, tab4 = st.tabs([
         "Resumo do Campeonato", "Análise de Performance", 
         "Análise de Qualificação", "Estratégia e Confiabilidade"
     ])
-    tab1, tab2, tab3, tab4 = st.tabs(["Resumo do Campeonato", "Análise de Performance", "Análise de Qualificação", "Estratégia e Confiabilidade"])
 
     with tab1:
-        st.subheader("A Disputa Pelo Título")
-        top_3_pilotos_ids = standings_final_pilotos.head(3)['driverId']
+        st.subheader("A Disputa Pelo Título e Pódios")
+        
+        top_pilotos_ids = standings_final_pilotos.head(5)['driverId']
         standings_ano = data['driver_standings'][data['driver_standings']['raceId'].isin(race_ids_ano)]
-        standings_top_3 = standings_ano[standings_ano['driverId'].isin(top_3_pilotos_ids)].merge(data['races'], on='raceId').merge(data['drivers'], on='driverId')
-        fig_disputa = px.line(standings_top_3, x='round', y='points', color='driver_name', labels={'round': 'Rodada', 'points': 'Pontos Acumulados', 'driver_name': 'Piloto'}, markers=True, color_discrete_sequence=F1_PALETTE)
-        pontos_construtor_piloto = results_full_ano.groupby(['constructor_name', 'driver_name'])['points'].sum().reset_index()
-        fig = px.bar(pontos_construtor_piloto, x='points', y='constructor_name', color='driver_name', orientation='h', text='points')
- 
+        standings_top = standings_ano[standings_ano['driverId'].isin(top_pilotos_ids)].merge(data['races'], on='raceId').merge(data['drivers'], on='driverId')
+        fig_disputa = px.line(standings_top, x='round', y='points', color='driver_name', labels={'round': 'Rodada', 'points': 'Pontos', 'driver_name': 'Piloto'}, markers=True, color_discrete_sequence=F1_PALETTE, title="Evolução dos Pontos dos Líderes")
         st.plotly_chart(fig_disputa, use_container_width=True)
 
         g1, g2 = st.columns(2)
         with g1:
-            st.markdown("**Classificação Final de Pilotos (Top 10)**")
-            top_10_drivers = standings_final_pilotos.head(10).merge(data['drivers'], on='driverId')
-            fig = px.bar(top_10_drivers, x='points', y='driver_name', orientation='h', text='points', color_discrete_sequence=[F1_RED])
+            st.markdown("**Classificação Final de Pilotos (Top 15)**")
+            top_drivers = standings_final_pilotos.head(15).merge(data['drivers'], on='driverId')
+            fig = px.bar(top_drivers, x='points', y='driver_name', orientation='h', text='points', color_discrete_sequence=[F1_RED])
             fig.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="")
             st.plotly_chart(fig, use_container_width=True)
         with g2:
-            st.markdown("**Pontos dos Construtores (por Piloto)**")
-            pontos_construtor_piloto = results_full_ano.groupby(['name_y', 'driver_name'])['points'].sum().reset_index()
-            fig = px.bar(pontos_construtor_piloto, x='points', y='name_y', color='driver_name', orientation='h', text='points', color_discrete_sequence=F1_PALETTE)
-            fig.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="", barmode='stack')
+            st.markdown("**Classificação Final de Construtores**")
+            top_constructors = standings_final_constr.merge(data['constructors'], on='constructorId')
+            fig = px.bar(top_constructors, x='points', y='name', orientation='h', text='points', color_discrete_sequence=[F1_GREY])
+            fig.update_layout(yaxis={'categoryorder':'total ascending'}, yaxis_title="")
             st.plotly_chart(fig, use_container_width=True)
+            
+        g3, g4 = st.columns(2)
+        with g3:
+            st.markdown("**Distribuição de Vitórias por Piloto**")
+            vitorias_piloto = results_full_ano[results_full_ano['position'] == 1]['driver_name'].value_counts()
+            fig_vic_pie = px.pie(vitorias_piloto, values=vitorias_piloto.values, names=vitorias_piloto.index, hole=0.4, color_discrete_sequence=F1_PALETTE)
+            st.plotly_chart(fig_vic_pie, use_container_width=True)
+        with g4:
+            st.markdown("**Pódios por Equipe (1º, 2º, 3º)**")
+            podios_df = results_full_ano[results_full_ano['position'].isin([1, 2, 3])]
+            podios_df['position'] = podios_df['position'].astype(str)
+            podios_por_equipe_detalhado = podios_df.groupby('constructor_name')['position'].value_counts().unstack(fill_value=0).reindex(columns=['1.0', '2.0', '3.0'], fill_value=0)
+            podios_por_equipe_detalhado['total'] = podios_por_equipe_detalhado.sum(axis=1)
+            podios_por_equipe_detalhado.sort_values(by=['total'], ascending=False, inplace=True)
+            fig_podios = go.Figure()
+            fig_podios.add_trace(go.Bar(name='1º Lugar', x=podios_por_equipe_detalhado.index, y=podios_por_equipe_detalhado['1.0'], marker_color=F1_RED))
+            fig_podios.add_trace(go.Bar(name='2º Lugar', x=podios_por_equipe_detalhado.index, y=podios_por_equipe_detalhado['2.0'], marker_color=F1_GREY))
+            fig_podios.add_trace(go.Bar(name='3º Lugar', x=podios_por_equipe_detalhado.index, y=podios_por_equipe_detalhado['3.0'], marker_color=F1_BLACK))
+            fig_podios.update_layout(barmode='stack', xaxis_title='Equipe', yaxis_title='Número de Pódios')
+            st.plotly_chart(fig_podios, use_container_width=True)
 
     with tab2:
         st.subheader("Análise de Performance em Corrida")
+        
+        st.markdown("**Grid de Largada vs. Posição Final**")
+        grid_final_ano = results_full_ano[['grid', 'position']].dropna()
+        grid_final_ano = grid_final_ano[(grid_final_ano['grid'] > 0) & (grid_final_ano['position'] > 0)]
+        fig_grid_final = px.scatter(grid_final_ano, x='grid', y='position', labels={'grid': 'Grid', 'position': 'Final'}, trendline='ols', trendline_color_override=F1_RED, color_discrete_sequence=[F1_BLACK], title="Correlação entre Posição de Largada e Resultado Final na Temporada")
+        st.plotly_chart(fig_grid_final, use_container_width=True)
+        
         g1, g2 = st.columns(2)
         with g1:
             st.markdown("**Total de Voltas Lideradas por Piloto**")
-            laps_led_piloto = results_full_ano.groupby('driver_name')['laps'].sum().nlargest(10).sort_values()
+            laps_led_piloto = results_full_ano.groupby('driver_name')['laps'].sum().nlargest(10).sort_values(ascending=True)
             fig_laps = px.bar(laps_led_piloto, x=laps_led_piloto.values, y=laps_led_piloto.index, orientation='h', text=laps_led_piloto.values, color_discrete_sequence=[F1_RED])
             fig_laps.update_layout(xaxis_title="Total de Voltas", yaxis_title="")
             st.plotly_chart(fig_laps, use_container_width=True)
         with g2:
             st.markdown("**Posições Ganhadas/Perdidas por Piloto**")
             results_full_ano['pos_ganhas'] = results_full_ano['grid'] - results_full_ano['position']
-            pos_ganhas_piloto = results_full_ano.groupby('driver_name')['pos_ganhas'].sum().nlargest(10).sort_values()
+            pos_ganhas_piloto = results_full_ano.groupby('driver_name')['pos_ganhas'].sum().nlargest(10).sort_values(ascending=True)
             fig_pos = px.bar(pos_ganhas_piloto, x=pos_ganhas_piloto.values, y=pos_ganhas_piloto.index, orientation='h', text=pos_ganhas_piloto.values, color=pos_ganhas_piloto.values, color_continuous_scale='RdBu')
             fig_pos.update_layout(xaxis_title="Saldo de Posições", yaxis_title="")
             st.plotly_chart(fig_pos, use_container_width=True)
-        
+            
+        g3, g4 = st.columns(2)
+        with g3:
+            st.markdown("**Voltas Mais Rápidas por Piloto**")
+            fastest_laps_piloto = results_full_ano[results_full_ano['rank'] == 1]['driver_name'].value_counts()
+            fig_fl = px.bar(fastest_laps_piloto, x=fastest_laps_piloto.index, y=fastest_laps_piloto.values, text=fastest_laps_piloto.values, color_discrete_sequence=[F1_GREY])
+            st.plotly_chart(fig_fl, use_container_width=True)
+        with g4:
+            st.markdown("**Pontos por Grande Prêmio (Top 4 Equipes)**")
+            top_4_construtores_ids = standings_final_constr.head(4)['constructorId']
+            pontos_corrida_construtor = results_full_ano[results_full_ano['constructorId'].isin(top_4_construtores_ids)]
+            pontos_corrida_agrupado = pontos_corrida_construtor.groupby(['gp_name', 'constructor_name'])['points'].sum().reset_index()
+            fig_pontos_corrida = px.bar(pontos_corrida_agrupado, x='gp_name', y='points', color='constructor_name', color_discrete_sequence=F1_PALETTE)
+            st.plotly_chart(fig_pontos_corrida, use_container_width=True)
+
     with tab3:
         st.subheader("Análise de Qualificação")
         quali_ano = data['qualifying'][data['qualifying']['raceId'].isin(race_ids_ano)].merge(data['drivers'], on='driverId')
+        quali_ano = quali_ano.merge(results_full_ano[['raceId', 'driverId', 'constructor_name']], on=['raceId', 'driverId'])
+        
         g1, g2 = st.columns(2)
         with g1:
             st.markdown("**Contagem de Pole Positions por Piloto**")
@@ -206,28 +251,68 @@ def render_visao_geral(data):
             fig_poles = px.bar(poles_count, x=poles_count.index, y=poles_count.values, text=poles_count.values, color_discrete_sequence=[F1_BLACK])
             st.plotly_chart(fig_poles, use_container_width=True)
         with g2:
-            st.markdown("**Posição Média de Largada**")
+            st.markdown("**Posição Média de Largada (Top 10)**")
             avg_grid = quali_ano.groupby('driver_name')['position'].mean().nsmallest(10).sort_values(ascending=False)
             fig_avg_grid = px.bar(avg_grid, x=avg_grid.values, y=avg_grid.index, orientation='h', text=avg_grid.apply(lambda x: f'{x:.2f}'), color_discrete_sequence=[F1_GREY])
             fig_avg_grid.update_layout(xaxis_title="Posição Média no Grid", yaxis_title="")
             st.plotly_chart(fig_avg_grid, use_container_width=True)
-            
+        
+        g3, g4 = st.columns(2)
+        with g3:
+            st.markdown("**Largadas na Primeira Fila (Top 10)**")
+            front_rows = quali_ano[quali_ano['position'].isin([1, 2])]['driver_name'].value_counts().nlargest(10)
+            fig_fr = px.bar(front_rows, x=front_rows.index, y=front_rows.values, text=front_rows.values, color_discrete_sequence=[F1_RED])
+            st.plotly_chart(fig_fr, use_container_width=True)
+        with g4:
+            st.markdown("**Aparições no Q3 (Top 10)**")
+            q3_apps = quali_ano.dropna(subset=['q3'])['driver_name'].value_counts().nlargest(10)
+            fig_q3 = px.bar(q3_apps, x=q3_apps.index, y=q3_apps.values, text=q3_apps.values, color_discrete_sequence=[F1_BLACK])
+            st.plotly_chart(fig_q3, use_container_width=True)
+
+        st.markdown("**Batalha de Qualificação entre Companheiros de Equipe**")
+        quali_pairs = quali_ano.groupby(['raceId', 'constructor_name'])['position'].nsmallest(2).reset_index()
+        quali_wide = quali_pairs.groupby(['raceId', 'constructor_name'])['position'].apply(list).apply(pd.Series).unstack().reset_index().dropna()
+        quali_wide.columns = ['raceId', 'constructor_name', 'pos1', 'pos2']
+        fastest_driver_indices = quali_ano.loc[quali_wide.index]['driver_name']
+        battle_wins = fastest_driver_indices.value_counts()
+        fig_battle = px.bar(battle_wins, x=battle_wins.index, y=battle_wins.values, text=battle_wins.values, color=battle_wins.index, color_discrete_sequence=F1_PALETTE)
+        fig_battle.update_layout(xaxis_title="Piloto", yaxis_title="Vezes mais rápido que o companheiro")
+        st.plotly_chart(fig_battle, use_container_width=True)
+
     with tab4:
         st.subheader("Estratégia e Confiabilidade")
+        pit_stops_ano = data['pit_stops'][data['pit_stops']['raceId'].isin(race_ids_ano)]
+        pit_stops_ano_full = pit_stops_ano.merge(results_full_ano, on=['raceId', 'driverId'])
+        
         g1, g2 = st.columns(2)
         with g1:
             st.markdown("**Tempo Médio de Pit Stop por Equipe**")
-            pit_stops_ano_full = pit_stops_ano.merge(results_full_ano, on=['raceId', 'driverId'])
-            avg_pit_time = pit_stops_ano_full.groupby('name_y')['duration'].mean().nsmallest(10).sort_values(ascending=False)
+            avg_pit_time = pit_stops_ano_full.groupby('constructor_name')['duration'].mean().nsmallest(10).sort_values(ascending=False)
             fig_pit_avg = px.bar(avg_pit_time, x=avg_pit_time.values, y=avg_pit_time.index, orientation='h', text=avg_pit_time.apply(lambda x: f'{x:.3f}s'), color_discrete_sequence=[F1_RED])
             st.plotly_chart(fig_pit_avg, use_container_width=True)
         with g2:
             st.markdown("**Confiabilidade das Equipes (% de Corridas Concluídas)**")
-            total_largadas = results_full_ano.groupby('name_y').size()
-            total_abandonos = results_full_ano[results_full_ano['position'].isna()].groupby('name_y').size().reindex(total_largadas.index, fill_value=0)
+            total_largadas = results_full_ano.groupby('constructor_name').size()
+            total_abandonos = results_full_ano[results_full_ano['position'].isna()].groupby('constructor_name').size().reindex(total_largadas.index, fill_value=0)
             taxa_confiabilidade = ((total_largadas - total_abandonos) / total_largadas * 100).sort_values()
             fig_conf = px.bar(taxa_confiabilidade, x=taxa_confiabilidade.values, y=taxa_confiabilidade.index, orientation='h', text=taxa_confiabilidade.apply(lambda x: f'{x:.1f}%'), color_discrete_sequence=[F1_GREY])
             st.plotly_chart(fig_conf, use_container_width=True)
+            
+        g3, g4 = st.columns(2)
+        with g3:
+            st.markdown("**Total de Pit Stops por Equipe**")
+            total_pit_stops = pit_stops_ano_full['constructor_name'].value_counts()
+            fig_total_stops = px.bar(total_pit_stops, x=total_pit_stops.index, y=total_pit_stops.values, text=total_pit_stops.values, color_discrete_sequence=[F1_BLACK])
+            st.plotly_chart(fig_total_stops, use_container_width=True)
+        with g4:
+            st.markdown("**Distribuição de Tempos de Pit Stop**")
+            fig_hist_pit = px.histogram(pit_stops_ano_full, x='duration', nbins=50, title="Frequência de Duração dos Pit Stops", color_discrete_sequence=[F1_GREY])
+            st.plotly_chart(fig_hist_pit, use_container_width=True)
+        
+        st.markdown("**Motivos de Abandono (DNF) na Temporada**")
+        dnf_counts = results_full_ano[results_full_ano['position'].isna()]['status'].value_counts().nlargest(15)
+        fig_treemap = px.treemap(names=dnf_counts.index, parents=["DNF"]*len(dnf_counts), values=dnf_counts.values, color_discrete_sequence=px.colors.sequential.Reds_r)
+        st.plotly_chart(fig_treemap, use_container_width=True)
             
 def render_analise_pilotos(data):
     st.title("🧑‍🚀 Análise de Pilotos")
