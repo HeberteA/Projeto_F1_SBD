@@ -606,7 +606,7 @@ def render_analise_construtores(data):
             st.markdown("**Resumo de Resultados**")
             results_construtor['categoria_resultado'] = results_construtor['position'].apply(lambda pos: 'Vitória' if pos == 1 else ('Pódio (2-3)' if pos in [2,3] else ('Pontos (4-10)' if 4 <= pos <= 10 else ('Não Pontuou' if pd.notna(pos) else 'DNF'))))
             resultado_counts = results_construtor['categoria_resultado'].value_counts()
-            fig_pie = px.pie(resultado_counts, values=resultado_counts.values, names=resultado_counts.index, hole=0.4, color=resultado_counts.index, color_discrete_sequence=F1_PALETTE)
+            fig_pie = px.pie(resultado_counts, values=resultado_counts.values, names=resultado_counts.index, hole=0.4, color=resultado_counts.index, color_discrete_map={'Vitória': F1_RED, 'Pódio (2-3)': F1_GREY, 'Pontos (4-10)': F1_BLACK})
             st.plotly_chart(fig_pie, use_container_width=True)
         with g2:
             st.markdown("**Posição no Campeonato (Ano a Ano)**")
