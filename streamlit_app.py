@@ -93,6 +93,8 @@ def carregar_todos_os_dados(_conn):
                                               .merge(data['drivers'], on='driverId')\
                                               .merge(data['constructors'], on='constructorId')\
                                               .merge(data['status'], on='statusId')
+            
+            data['results_full'].rename(columns={'name_x': 'gp_name', 'name_y': 'constructor_name', 'nationality_x': 'driver_nationality', 'nationality_y': 'constructor_nationality'}, inplace=True)
         
         return data
         
@@ -104,10 +106,7 @@ def render_visao_geral(data):
     st.title("🏁 Visão Geral da Temporada")
     st.markdown("---")
 
-    ano_selecionado = st.selectbox(
-        "Selecione a Temporada",
-        options=sorted(data['races']['year'].unique(), reverse=True)
-    )
+    ano_selecionado = st.selectbox("Selecione a Temporada", options=sorted(data['races']['year'].unique(), reverse=True))
 
     races_ano = data['races'][data['races']['year'] == ano_selecionado]
     race_ids_ano = races_ano['raceId']
@@ -142,12 +141,13 @@ def render_visao_geral(data):
     poles_unicos = data['qualifying'][(data['qualifying']['raceId'].isin(race_ids_ano)) & (data['qualifying']['position'] == 1)]['driverId'].nunique()
     c6.metric("⏱️ Pole Sitters Diferentes", poles_unicos)
     if fastest_pit_stop is not None:
-        equipe_pit_stop = results_full_ano[results_full_ano['driverId'] == fastest_pit_stop['driverId']]['name'].iloc[0]
-        c7.metric("🔧 Pit Stop Mais Rápido", f"{equipe_pit_stop} ({fastest_pit_stop['duration']:.3f}s)")
+        equipe_pit_stop_row = results_full_ano[results_full_ano['driverId'] == fastest_pit_stop['driverId']]
+        if not equipe_pit_stop_row.empty:
+            equipe_pit_stop = equipe_pit_stop_row['constructor_name'].iloc[0]
+            c7.metric("🔧 Pit Stop Mais Rápido", f"{equipe_pit_stop} ({fastest_pit_stop['duration']:.3f}s)")
     total_dnfs = results_full_ano['position'].isna().sum()
     c8.metric("💥 Total de Abandonos (DNF)", f"{total_dnfs} carros")
     st.markdown("---")
-
     tab1, tab2, tab3, tab4 = st.tabs([
         "Resumo do Campeonato", "Análise de Performance", 
         "Análise de Qualificação", "Estratégia e Confiabilidade"
