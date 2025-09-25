@@ -146,12 +146,21 @@ def render_visao_geral(data):
     ])
 
     with tab1:
+        with tab1:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("💯 Total de Pontos Distribuídos", f"{results_full_ano['points'].sum():,.0f}")
+        vitorias_por_equipe = results_full_ano[results_full_ano['position'] == 1]['constructor_name'].value_counts()
+        c2.metric("🏆 Equipe com Mais Vitórias", f"{vitorias_por_equipe.index[0]} ({vitorias_por_equipe.iloc[0]})")
+        podios_por_piloto = results_full_ano[results_full_ano['position'].isin([1,2,3])]['driver_name'].value_counts()
+        c3.metric("🍾 Piloto com Mais Pódios", f"{podios_por_piloto.index[0]} ({podios_por_piloto.iloc[0]})")
+        st.markdown("---")
         st.subheader("A Disputa Pelo Título e Pódios")
         
         top_pilotos_ids = standings_final_pilotos.head(5)['driverId']
         standings_ano = data['driver_standings'][data['driver_standings']['raceId'].isin(race_ids_ano)]
         standings_top = standings_ano[standings_ano['driverId'].isin(top_pilotos_ids)].merge(data['races'], on='raceId').merge(data['drivers'], on='driverId')
         fig_disputa = px.line(standings_top, x='round', y='points', color='driver_name', labels={'round': 'Rodada', 'points': 'Pontos', 'driver_name': 'Piloto'}, markers=True, color_discrete_sequence=F1_PALETTE, title="Evolução dos Pontos dos Líderes")
+
         st.plotly_chart(fig_disputa, use_container_width=True)
 
         g1, g2 = st.columns(2)
@@ -189,6 +198,14 @@ def render_visao_geral(data):
             st.plotly_chart(fig_podios, use_container_width=True)
 
     with tab2:
+        results_full_ano['pos_ganhas'] = results_full_ano['grid'] - results_full_ano['position']
+        maior_escalada = results_full_ano.loc[results_full_ano['pos_ganhas'].idxmax()]
+        c1, c2, c3 = st.columns(3)
+        c1.metric("🏎️ Total de Voltas Corridas", f"{results_full_ano['laps'].sum():,.0f}")
+        piloto_mais_voltas_lideradas = results_full_ano.groupby('driver_name')['laps'].sum().nlargest(1)
+        c2.metric("👑 Liderou Mais Voltas", f"{piloto_mais_voltas_lideradas.index[0]} ({int(piloto_mais_voltas_lideradas.values[0])})")
+        c3.metric("🚀 Ultrapassagem Destaque", f"{maior_escalada['driver_name']} (+{int(maior_escalada['pos_ganhas'])} posições em {maior_escalada['gp_name']})")
+        st.markdown("---")
         st.subheader("Análise de Performance em Corrida")
         
         st.markdown("**Grid de Largada vs. Posição Final**")
@@ -227,8 +244,17 @@ def render_visao_geral(data):
             st.plotly_chart(fig_pontos_corrida, use_container_width=True)
 
     with tab3:
-        st.subheader("Análise de Qualificação")
         quali_ano = data['qualifying'][data['qualifying']['raceId'].isin(race_ids_ano)].merge(data['drivers'], on='driverId')
+
+        c1, c2, c3 = st.columns(3)
+        poles_count = quali_ano[quali_ano['position'] == 1]['driver_name'].value_counts()
+        c1.metric("🥇 Piloto com Mais Poles", f"{poles_count.index[0]} ({poles_count.iloc[0]})")
+        front_rows = quali_ano[quali_ano['position'].isin([1, 2])]['driver_name'].value_counts()
+        c2.metric("🥈 Piloto com Mais 1ª Filas", f"{front_rows.index[0]} ({front_rows.iloc[0]})")
+        q3_apps = quali_ano.dropna(subset=['q3'])['driver_name'].value_counts()
+        c3.metric("🔝 Piloto com Mais Aparições no Q3", f"{q3_apps.index[0]} ({q3_apps.iloc[0]})")
+        st.markdown("---")
+        st.subheader("Análise de Qualificação")
         quali_ano = quali_ano.merge(results_full_ano[['raceId', 'driverId', 'constructor_name']], on=['raceId', 'driverId'])
         
         g1, g2 = st.columns(2)
@@ -267,6 +293,20 @@ def render_visao_geral(data):
         st.plotly_chart(fig_battle, use_container_width=True)
 
     with tab4:
+        pit_stops_ano = data['pit_stops'][data['pit_stops']['raceId'].isin(race_ids_ano)]
+        pit_stops_ano_full = pit_stops_ano.merge(results_full_ano, on=['raceId', 'driverId'])
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("🔧 Total de Pit Stops na Temporada", f"{len(pit_stops_ano):,}")
+        corrida_mais_paradas = pit_stops_ano.groupby('raceId')['stop'].count().nlargest(1)
+        nome_corrida_paradas = data['races'][data['races']['raceId'] == corrida_mais_paradas.index[0]]['gp_name'].iloc[0]
+        c2.metric("🚦 Corrida com Mais Paradas", f"{nome_corrida_paradas} ({corrida_mais_paradas.iloc[0]})")
+        total_largadas = results_full_ano.groupby('constructor_name').size()
+        total_abandonos = results_full_ano[results_full_ano['position'].isna()].groupby('constructor_name').size().reindex(total_largadas.index, fill_value=0)
+        taxa_confiabilidade = ((total_largadas - total_abandonos) / total_largadas * 100)
+        equipe_mais_confiavel = taxa_confiabilidade.nlargest(1)
+        c3.metric("✅ Equipe Mais Confiável", f"{equipe_mais_confiavel.index[0]} ({equipe_mais_confiavel.iloc[0]:.1f}%)")
+        st.markdown("---")
         st.subheader("Estratégia e Confiabilidade")
         pit_stops_ano = data['pit_stops'][data['pit_stops']['raceId'].isin(race_ids_ano)]
         pit_stops_ano_full = pit_stops_ano.merge(results_full_ano, on=['raceId', 'driverId'])
