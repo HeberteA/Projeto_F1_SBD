@@ -146,6 +146,8 @@ def render_visao_geral(data):
     ])
 
     with tab1:
+        st.subheader("A Disputa Pelo Título e Pódios")
+        st.markdown("---")
         c1, c2, c3 = st.columns(3)
         c1.metric("💯 Total de Pontos Distribuídos", f"{results_full_ano['points'].sum():,.0f}")
         vitorias_por_equipe = results_full_ano[results_full_ano['position'] == 1]['constructor_name'].value_counts()
@@ -154,7 +156,6 @@ def render_visao_geral(data):
         c3.metric("🍾 Piloto com Mais Pódios", f"{podios_por_piloto.index[0]} ({podios_por_piloto.iloc[0]})")
         
         st.markdown("---")
-        st.subheader("A Disputa Pelo Título e Pódios")
         
         top_pilotos_ids = standings_final_pilotos.head(5)['driverId']
         standings_ano = data['driver_standings'][data['driver_standings']['raceId'].isin(race_ids_ano)]
@@ -198,6 +199,8 @@ def render_visao_geral(data):
             st.plotly_chart(fig_podios, use_container_width=True)
 
     with tab2:
+        st.subheader("Análise de Performance em Corrida")
+        st.markdown("---")
         results_full_ano['pos_ganhas'] = results_full_ano['grid'] - results_full_ano['position']
         maior_escalada = results_full_ano.loc[results_full_ano['pos_ganhas'].idxmax()]
         c1, c2, c3 = st.columns(3)
@@ -206,7 +209,6 @@ def render_visao_geral(data):
         c2.metric("👑 Liderou Mais Voltas", f"{piloto_mais_voltas_lideradas.index[0]} ({int(piloto_mais_voltas_lideradas.values[0])})")
         c3.metric("🚀 Ultrapassagem Destaque", f"{maior_escalada['driver_name']} (+{int(maior_escalada['pos_ganhas'])} posições em {maior_escalada['gp_name']})")
         st.markdown("---")
-        st.subheader("Análise de Performance em Corrida")
         
         st.markdown("**Grid de Largada vs. Posição Final**")
         grid_final_ano = results_full_ano[['grid', 'position']].dropna()
@@ -245,6 +247,7 @@ def render_visao_geral(data):
 
     with tab3:
         st.subheader("Análise de Qualificação")
+        st.markdown("---")
         quali_ano = data['qualifying'][data['qualifying']['raceId'].isin(race_ids_ano)].merge(data['drivers'], on='driverId')
 
         c1, c2, c3 = st.columns(3)
@@ -296,21 +299,24 @@ def render_visao_geral(data):
         st.plotly_chart(fig_battle, use_container_width=True)
 
     with tab4:
+        st.subheader("Estratégia e Confiabilidade")
         pit_stops_ano = data['pit_stops'][data['pit_stops']['raceId'].isin(race_ids_ano)]
-        pit_stops_ano_full = pit_stops_ano.merge(results_full_ano, on=['raceId', 'driverId'])
         
         c1, c2, c3 = st.columns(3)
         c1.metric("🔧 Total de Pit Stops na Temporada", f"{len(pit_stops_ano):,}")
         corrida_mais_paradas = pit_stops_ano.groupby('raceId')['stop'].count().nlargest(1)
-        nome_corrida_paradas = data['races'][data['races']['raceId'] == corrida_mais_paradas.index[0]]['gp_name'].iloc[0]
-        c2.metric("🚦 Corrida com Mais Paradas", f"{nome_corrida_paradas} ({corrida_mais_paradas.iloc[0]})")
+        if not corrida_mais_paradas.empty:
+            nome_corrida_paradas = data['races'][data['races']['raceId'] == corrida_mais_paradas.index[0]]['name'].iloc[0]
+            c2.metric("🚦 Corrida com Mais Paradas", f"{nome_corrida_paradas} ({corrida_mais_paradas.iloc[0]})")
+
         total_largadas = results_full_ano.groupby('constructor_name').size()
         total_abandonos = results_full_ano[results_full_ano['position'].isna()].groupby('constructor_name').size().reindex(total_largadas.index, fill_value=0)
         taxa_confiabilidade = ((total_largadas - total_abandonos) / total_largadas * 100)
         equipe_mais_confiavel = taxa_confiabilidade.nlargest(1)
-        c3.metric("✅ Equipe Mais Confiável", f"{equipe_mais_confiavel.index[0]} ({equipe_mais_confiavel.iloc[0]:.1f}%)")
+        if not equipe_mais_confiavel.empty:
+            c3.metric("✅ Equipe Mais Confiável", f"{equipe_mais_confiavel.index[0]} ({equipe_mais_confiavel.iloc[0]:.1f}%)")
+        
         st.markdown("---")
-        st.subheader("Estratégia e Confiabilidade")
         pit_stops_ano = data['pit_stops'][data['pit_stops']['raceId'].isin(race_ids_ano)]
         pit_stops_ano_full = pit_stops_ano.merge(results_full_ano, on=['raceId', 'driverId'])
         
