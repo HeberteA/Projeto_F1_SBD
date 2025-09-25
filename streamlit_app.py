@@ -42,7 +42,6 @@ def executar_comando_sql(conn, comando, params=None):
 
 @st.cache_data(ttl=60)
 def carregar_todos_os_dados(_conn):
-    st.info("Carregando e preparando dados do banco de dados...")
     
     queries = {
         'races': 'select * from races', 'results': 'select * from results',
@@ -90,12 +89,11 @@ def carregar_todos_os_dados(_conn):
             data['pit_stops']['duration'] = data['pit_stops']['milliseconds'] / 1000
         
         if all(k in data for k in ['results', 'races', 'drivers', 'constructors', 'status']):
-            data['results_full'] = data['results'].merge(data['races'], on='raceId')\
-                                                  .merge(data['drivers'], on='driverId')\
-                                                  .merge(data['constructors'], on='constructorId', suffixes=('_driver', '_constructor'))\
-                                                  .merge(data['status'], on='statusId')
+            data['results_full'] = data['results'].merge(data['races'], on='raceId', suffixes=('', '_race'))\
+                                              .merge(data['drivers'], on='driverId')\
+                                              .merge(data['constructors'], on='constructorId')\
+                                              .merge(data['status'], on='statusId')
         
-        st.success("Dados carregados com sucesso!")
         return data
         
     except Exception as e:
@@ -103,7 +101,7 @@ def carregar_todos_os_dados(_conn):
         return None
 
 def render_visao_geral(data):
-    st.title("🏁 Visão Geral da Temporada (BI Version)")
+    st.title("🏁 Visão Geral da Temporada")
     st.markdown("---")
 
     ano_selecionado = st.selectbox(
@@ -144,13 +142,12 @@ def render_visao_geral(data):
     poles_unicos = data['qualifying'][(data['qualifying']['raceId'].isin(race_ids_ano)) & (data['qualifying']['position'] == 1)]['driverId'].nunique()
     c6.metric("⏱️ Pole Sitters Diferentes", poles_unicos)
     if fastest_pit_stop is not None:
-        equipe_pit_stop = results_full_ano[results_full_ano['driverId'] == fastest_pit_stop['driverId']]['name_y'].iloc[0]
+        equipe_pit_stop = results_full_ano[results_full_ano['driverId'] == fastest_pit_stop['driverId']]['name'].iloc[0]
         c7.metric("🔧 Pit Stop Mais Rápido", f"{equipe_pit_stop} ({fastest_pit_stop['duration']:.3f}s)")
     total_dnfs = results_full_ano['position'].isna().sum()
     c8.metric("💥 Total de Abandonos (DNF)", f"{total_dnfs} carros")
     st.markdown("---")
 
-    # --- ABAS COM GRÁFICOS DETALHADOS ---
     tab1, tab2, tab3, tab4 = st.tabs([
         "Resumo do Campeonato", "Análise de Performance", 
         "Análise de Qualificação", "Estratégia e Confiabilidade"
