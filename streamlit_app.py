@@ -350,7 +350,7 @@ def render_analise_pilotos(data):
             fig_champ = px.line(pos_final_ano, x='year', y='position', markers=True, 
                                 title="Posição Final no Campeonato por Ano",
                                 labels={'year': 'Temporada', 'position': 'Posição Final'},
-                                color_discrete_sequence=[F1_BLACK])
+                                color_discrete_sequence=[F1_RED])
             fig_champ.update_yaxes(autorange="reversed")
             st.plotly_chart(fig_champ, use_container_width=True)
         else:
