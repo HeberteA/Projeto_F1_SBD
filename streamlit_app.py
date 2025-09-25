@@ -244,6 +244,7 @@ def render_visao_geral(data):
             st.plotly_chart(fig_pontos_corrida, use_container_width=True)
 
     with tab3:
+        st.subheader("Análise de Qualificação")
         quali_ano = data['qualifying'][data['qualifying']['raceId'].isin(race_ids_ano)].merge(data['drivers'], on='driverId')
 
         c1, c2, c3 = st.columns(3)
@@ -254,8 +255,9 @@ def render_visao_geral(data):
         q3_apps = quali_ano.dropna(subset=['q3'])['driver_name'].value_counts()
         c3.metric("🔝 Piloto com Mais Aparições no Q3", f"{q3_apps.index[0]} ({q3_apps.iloc[0]})")
         st.markdown("---")
-        st.subheader("Análise de Qualificação")
-        quali_ano = quali_ano.merge(results_full_ano[['raceId', 'driverId', 'constructor_name']], on=['raceId', 'driverId'])
+        
+        quali_ano = data['qualifying'][data['qualifying']['raceId'].isin(race_ids_ano)].merge(data['drivers'], on='driverId')
+        quali_ano = quali_ano.merge(results_full_ano[['raceId', 'driverId', 'constructor_name']].drop_duplicates(), on=['raceId', 'driverId'])
         
         g1, g2 = st.columns(2)
         with g1:
@@ -267,7 +269,6 @@ def render_visao_geral(data):
             st.markdown("**Posição Média de Largada (Top 10)**")
             avg_grid = quali_ano.groupby('driver_name')['position'].mean().nsmallest(10).sort_values(ascending=False)
             fig_avg_grid = px.bar(avg_grid, x=avg_grid.values, y=avg_grid.index, orientation='h', text=avg_grid.apply(lambda x: f'{x:.2f}'), color_discrete_sequence=[F1_GREY])
-            fig_avg_grid.update_layout(xaxis_title="Posição Média no Grid", yaxis_title="")
             st.plotly_chart(fig_avg_grid, use_container_width=True)
         
         g3, g4 = st.columns(2)
@@ -283,13 +284,15 @@ def render_visao_geral(data):
             st.plotly_chart(fig_q3, use_container_width=True)
 
         st.markdown("**Batalha de Qualificação entre Companheiros de Equipe**")
-        quali_pairs = quali_ano.groupby(['raceId', 'constructor_name'])['position'].nsmallest(2).reset_index()
-        quali_wide = quali_pairs.groupby(['raceId', 'constructor_name'])['position'].apply(list).apply(pd.Series).unstack().reset_index().dropna()
-        quali_wide.columns = ['raceId', 'constructor_name', 'pos1', 'pos2']
-        fastest_driver_indices = quali_ano.loc[quali_wide.index]['driver_name']
-        battle_wins = fastest_driver_indices.value_counts()
-        fig_battle = px.bar(battle_wins, x=battle_wins.index, y=battle_wins.values, text=battle_wins.values, color=battle_wins.index, color_discrete_sequence=F1_PALETTE)
-        fig_battle.update_layout(xaxis_title="Piloto", yaxis_title="Vezes mais rápido que o companheiro")
+        quali_counts = quali_ano.groupby(['raceId', 'constructor_name'])['driverId'].transform('nunique')
+        quali_valid = quali_ano[quali_counts == 2].copy()
+        idx = quali_valid.groupby(['raceId', 'constructor_name'])['position'].idxmin()
+        quali_winners = quali_valid.loc[idx]
+        battle_wins = quali_winners['driver_name'].value_counts()
+        
+        fig_battle = px.bar(battle_wins, x=battle_wins.index, y=battle_wins.values, text=battle_wins.values, 
+                            color=battle_wins.index, color_discrete_sequence=F1_PALETTE,
+                            labels={'x': 'Piloto', 'y': 'Vitórias sobre o Companheiro'})
         st.plotly_chart(fig_battle, use_container_width=True)
 
     with tab4:
