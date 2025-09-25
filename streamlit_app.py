@@ -221,8 +221,8 @@ def render_visao_geral(data):
     grid_final_ano = grid_final_ano[(grid_final_ano['grid'] > 0) & (grid_final_ano['position'] > 0)]
     fig_grid_final = px.scatter(grid_final_ano, x='grid', y='position',
                                 labels={'grid': 'Grid de Largada', 'position': 'Posição Final'},
-                                trendline='ols', trendline_color_override=F1_RED,
-                                color_discrete_sequence=[F1_BLACK],
+                                trendline='ols', trendline_color_override=F1_WHITE,
+                                color_discrete_sequence=[F1_RED],
                                 title="Correlação entre largar na frente e terminar bem")
     st.plotly_chart(fig_grid_final, use_container_width=True)
     
