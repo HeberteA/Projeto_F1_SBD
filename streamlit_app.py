@@ -300,6 +300,7 @@ def render_visao_geral(data):
 
     with tab4:
         st.subheader("Estratégia e Confiabilidade")
+        st.markdown("---")
         pit_stops_ano = data['pit_stops'][data['pit_stops']['raceId'].isin(race_ids_ano)]
         
         c1, c2, c3 = st.columns(3)
