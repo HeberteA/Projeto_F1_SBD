@@ -159,6 +159,9 @@ def render_visao_geral(data):
         standings_ano = data['driver_standings'][data['driver_standings']['raceId'].isin(race_ids_ano)]
         standings_top_3 = standings_ano[standings_ano['driverId'].isin(top_3_pilotos_ids)].merge(data['races'], on='raceId').merge(data['drivers'], on='driverId')
         fig_disputa = px.line(standings_top_3, x='round', y='points', color='driver_name', labels={'round': 'Rodada', 'points': 'Pontos Acumulados', 'driver_name': 'Piloto'}, markers=True, color_discrete_sequence=F1_PALETTE)
+        pontos_construtor_piloto = results_full_ano.groupby(['constructor_name', 'driver_name'])['points'].sum().reset_index()
+        fig = px.bar(pontos_construtor_piloto, x='points', y='constructor_name', color='driver_name', orientation='h', text='points')
+ 
         st.plotly_chart(fig_disputa, use_container_width=True)
 
         g1, g2 = st.columns(2)
