@@ -606,7 +606,7 @@ def render_analise_construtores(data):
             st.markdown("**Resumo de Resultados**")
             results_construtor['categoria_resultado'] = results_construtor['position'].apply(lambda pos: 'Vitória' if pos == 1 else ('Pódio (2-3)' if pos in [2,3] else ('Pontos (4-10)' if 4 <= pos <= 10 else ('Não Pontuou' if pd.notna(pos) else 'DNF'))))
             resultado_counts = results_construtor['categoria_resultado'].value_counts()
-            fig_pie = px.pie(resultado_counts, values=resultado_counts.values, names=resultado_counts.index, hole=0.4, color=resultado_counts.index, color_discrete_map={'Vitória': F1_RED, 'Pódio (2-3)': F1_GREY, 'Pontos (4-10)': F1_BLACK})
+            fig_pie = px.pie(resultado_counts, values=resultado_counts.values, names=resultado_counts.index, hole=0.4, color=resultado_counts.index, color_discrete_map={'Vitória': F1_RED, 'Pódio (2-3)': F1_GREY, 'Pontos (4-10)': F1_BLACK, 'Não Pontuou':F1_WHITE})
             st.plotly_chart(fig_pie, use_container_width=True)
         with g2:
             st.markdown("**Posição no Campeonato (Ano a Ano)**")
@@ -626,7 +626,7 @@ def render_analise_construtores(data):
             st.plotly_chart(fig_circ, use_container_width=True)
         with g4:
             st.markdown("**Poles por Circuito (Top 10)**")
-            poles_circuito = data['qualifying'][(data['qualifying']['constructorId'] == id_construtor) & (data['qualifying']['position'] == 1)].merge(data['races'], on='raceId')['gp_name'].value_counts().nlargest(10)
+            poles_circuito = results_construtor[results_construtor['grid'] == 1]['gp_name'].value_counts().nlargest(10)
             fig_poles = px.bar(poles_circuito, x=poles_circuito.values, y=poles_circuito.index, orientation='h', text=poles_circuito.values, color_discrete_sequence=[F1_BLACK])
             st.plotly_chart(fig_poles, use_container_width=True)
 
