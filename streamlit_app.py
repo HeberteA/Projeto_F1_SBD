@@ -152,6 +152,7 @@ def render_visao_geral(data):
         "Resumo do Campeonato", "Análise de Performance", 
         "Análise de Qualificação", "Estratégia e Confiabilidade"
     ])
+    tab1, tab2, tab3, tab4 = st.tabs(["Resumo do Campeonato", "Análise de Performance", "Análise de Qualificação", "Estratégia e Confiabilidade"])
 
     with tab1:
         st.subheader("A Disputa Pelo Título")
