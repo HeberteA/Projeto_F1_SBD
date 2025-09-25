@@ -10,7 +10,7 @@ from datetime import date
 st.set_page_config(layout="wide", page_title="F1 Analytics", page_icon="f1.png")
 F1_PALETTE = ["#ff0800", "#7F7F7F", "#6b0000", "#B1B1B8", "#000000", "#FFFFFF", "#9c0000"]
 F1_RED = F1_PALETTE[0]
-F1_BLACK = F1_PALETTE[6]
+F1_BLACK = F1_PALETTE[4]
 F1_GREY = F1_PALETTE[1]
 F1_WHITE = F1_PALETTE[5]
 
@@ -606,7 +606,7 @@ def render_analise_construtores(data):
             st.markdown("**Resumo de Resultados**")
             results_construtor['categoria_resultado'] = results_construtor['position'].apply(lambda pos: 'Vitória' if pos == 1 else ('Pódio (2-3)' if pos in [2,3] else ('Pontos (4-10)' if 4 <= pos <= 10 else ('Não Pontuou' if pd.notna(pos) else 'DNF'))))
             resultado_counts = results_construtor['categoria_resultado'].value_counts()
-            fig_pie = px.pie(resultado_counts, values=resultado_counts.values, names=resultado_counts.index, hole=0.4, color=resultado_counts.index, color_discrete_map={'Vitória': F1_RED, 'Pódio (2-3)': F1_GREY, 'Pontos (4-10)': F1_BLACK})
+            fig_pie = px.pie(resultado_counts, values=resultado_counts.values, names=resultado_counts.index, hole=0.4, color=resultado_counts.index, color_discrete_sequence=F1_PALETTE)
             st.plotly_chart(fig_pie, use_container_width=True)
         with g2:
             st.markdown("**Posição no Campeonato (Ano a Ano)**")
@@ -733,13 +733,14 @@ def render_analise_construtores(data):
         
     with tab4:
         st.subheader("Estratégia e Confiabilidade")
-        total_dnfs = res_piloto['position'].isna().sum()
-        confiabilidade = ((total_corridas - total_dnfs) / total_corridas * 100) if total_corridas > 0 else 0
+        total_entradas = len(results_construtor)
+        total_dnfs = results_construtor['position'].isna().sum()
+        confiabilidade = ((total_entradas - total_dnfs) / total_entradas * 100) if total_entradas > 0 else 0
         
         c1, c2, c3 = st.columns(3)
         c1.metric("💥 Total de Abandonos (DNF)", total_dnfs)
-        c2.metric("✅ Taxa de Confiabilidade", f"{confiabilidade:.2f}%")
-        dnf_comum = res_piloto[res_piloto['position'].isna()]['status'].value_counts().nlargest(1)
+        c2.metric("✅ Confiabilidade Geral", f"{confiabilidade:.2f}%")
+        dnf_comum = results_construtor[results_construtor['position'].isna()]['status'].value_counts().nlargest(1)
         if not dnf_comum.empty:
             c3.metric("🔩 Principal Motivo de DNF", dnf_comum.index[0])
 
