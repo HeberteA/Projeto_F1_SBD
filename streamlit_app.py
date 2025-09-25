@@ -182,7 +182,7 @@ def render_visao_geral(data):
     with g2:
         st.subheader("Vitórias por Piloto")
         vitorias_piloto = results_full_ano[results_full_ano['position'] == 1]['driver_name'].value_counts()
-        fig_vitorias = px.bar(vitorias_piloto, x=vitorias_piloto.index, y=vitorias_piloto.values, text=vitorias_piloto.values, color_discrete_sequence=[F1_RED])
+        fig_vitorias = px.bar(vitorias_piloto, x=vitorias_piloto.index, y=vitorias_piloto.values, text=vitorias_piloto.values, color_discrete_sequence=[F1_GRAY])
         fig_vitorias.update_layout(xaxis_title="Piloto", yaxis_title="Número de Vitórias")
         st.plotly_chart(fig_vitorias, use_container_width=True)
     st.markdown("---")
