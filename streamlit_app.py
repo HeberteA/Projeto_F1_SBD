@@ -146,13 +146,13 @@ def render_visao_geral(data):
     ])
 
     with tab1:
-        with tab1:
         c1, c2, c3 = st.columns(3)
         c1.metric("💯 Total de Pontos Distribuídos", f"{results_full_ano['points'].sum():,.0f}")
         vitorias_por_equipe = results_full_ano[results_full_ano['position'] == 1]['constructor_name'].value_counts()
         c2.metric("🏆 Equipe com Mais Vitórias", f"{vitorias_por_equipe.index[0]} ({vitorias_por_equipe.iloc[0]})")
         podios_por_piloto = results_full_ano[results_full_ano['position'].isin([1,2,3])]['driver_name'].value_counts()
         c3.metric("🍾 Piloto com Mais Pódios", f"{podios_por_piloto.index[0]} ({podios_por_piloto.iloc[0]})")
+        
         st.markdown("---")
         st.subheader("A Disputa Pelo Título e Pódios")
         
