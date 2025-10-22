@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from streamlit_option_menu import option_menu
 import psycopg2
+from st_aggrid import AgGrid
 from datetime import date
 
 
@@ -1223,7 +1224,7 @@ def render_pagina_gerenciamento(conn):
 def main():
     with st.sidebar:
         st.image("f1_logo.png", width=300)
-        app_page = option_menu(
+        app_page = aggrid(
             menu_title='F1 Super Analytics',
             options=['Visão Geral', 'Análise de Pilotos', 'Análise de Construtores', 'Análise de Circuitos', 'H2H', 'Hall da Fama'],
             icons=['trophy-fill', 'person-badge', 'tools', 'signpost-split', 'people-fill', 'award-fill'],
